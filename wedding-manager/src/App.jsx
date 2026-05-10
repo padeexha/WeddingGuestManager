@@ -168,42 +168,85 @@ const lsSet = (key, val) => {
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Jost:wght@300;400;500&display=swap');
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Jost',sans-serif; background:${T.bg}; color:${T.text}; min-height:100vh; }
+  html, body, #root { width:100%; max-width:none; min-height:100%; margin:0; border:0; text-align:left; }
+  body { font-family:'Jost',sans-serif; background:${T.bg}; color:${T.text}; min-height:100vh; overflow-x:hidden; }
   h2,h3 { font-family:'Cormorant Garamond',serif; }
-  .app { display:flex; flex-direction:column; min-height:100vh; }
-  .header { background:${T.header}; padding:0 36px; display:flex; align-items:center; justify-content:space-between; height:64px; flex-shrink:0; border-bottom:1px solid #5C2840; }
+  .app { display:flex; flex-direction:column; min-height:100vh; width:100%; background:linear-gradient(180deg,${T.bg} 0%,#fff 58%,${T.surfaceAlt} 100%); }
+  .header { position:sticky; top:0; z-index:100; background:${T.header}; padding:0 32px; display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:68px; flex-shrink:0; border-bottom:1px solid #5C2840; box-shadow:0 12px 34px rgba(61,24,41,.12); }
   .header-brand { display:flex; align-items:center; gap:14px; }
   .lotus-icon { font-size:22px; }
   .header-title { font-family:'Cormorant Garamond',serif; color:${T.headerText}; font-size:22px; font-weight:600; }
   .header-sub { font-size:10px; color:${T.headerMuted}; font-weight:400; letter-spacing:1.5px; text-transform:uppercase; margin-top:1px; }
-  .nav { display:flex; gap:2px; }
+  .nav { display:flex; gap:4px; min-width:0; }
   .nav-btn { background:none; border:none; cursor:pointer; padding:8px 16px; border-radius:6px; font-family:'Jost',sans-serif; font-size:13px; font-weight:500; color:${T.headerMuted}; transition:all .15s; }
   .nav-btn:hover { background:rgba(255,255,255,.07); color:${T.headerText}; }
   .nav-btn.active { background:rgba(176,82,120,.25); color:${T.headerText}; }
   .nav-count { background:rgba(255,255,255,.12); border-radius:10px; padding:1px 7px; font-size:11px; margin-left:6px; }
-  .main { flex:1; padding:30px 36px; }
+  .logout-btn { flex:0 0 auto; color:${T.headerText}; border-color:rgba(245,220,235,.22); background:rgba(255,255,255,.06); }
+  .logout-btn:hover { color:#fff; background:rgba(255,255,255,.12); border-color:rgba(245,220,235,.34); }
+  .main { flex:1; width:100%; max-width:1380px; margin:0 auto; padding:32px; }
   .top-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
   .page-title { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; color:${T.text}; }
-  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
-  .stat-card { background:${T.surface}; border-radius:14px; padding:20px 22px; border:1px solid ${T.border}; position:relative; overflow:hidden; cursor:default; }
-  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--ac); }
-  .stat-label { font-size:10px; color:${T.textMuted}; font-weight:500; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
-  .stat-value { font-family:'Cormorant Garamond',serif; font-size:38px; font-weight:600; line-height:1; }
-  .stat-sub { font-size:11px; color:${T.textMuted}; margin-top:5px; }
-  .card { background:${T.surface}; border-radius:14px; padding:24px; border:1px solid ${T.border}; }
-  .card-title { font-size:10px; font-weight:500; color:${T.textMuted}; text-transform:uppercase; letter-spacing:1px; margin-bottom:20px; }
+  .page-eyebrow { font-size:10px; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; color:${T.textMuted}; margin-bottom:4px; }
+  .dashboard-topbar { align-items:flex-end; }
+  .dashboard-shell { display:grid; gap:20px; }
+  .dashboard-hero { min-height:210px; display:grid; grid-template-columns:minmax(0,1fr) minmax(310px,420px); gap:28px; align-items:end; padding:30px; border-radius:18px; border:1px solid rgba(92,40,64,.22); background:linear-gradient(135deg,${T.header} 0%,#6B2C49 58%,${T.primaryDark} 100%); color:${T.headerText}; position:relative; overflow:hidden; box-shadow:0 24px 54px rgba(61,24,41,.18); }
+  .dashboard-hero::before { content:''; position:absolute; inset:18px; border:1px solid rgba(245,220,235,.16); border-radius:14px; pointer-events:none; }
+  .dashboard-hero::after { content:''; position:absolute; right:-120px; top:-150px; width:380px; height:380px; border:1px solid rgba(196,154,108,.28); border-radius:50%; pointer-events:none; }
+  .dashboard-kicker { display:inline-flex; align-items:center; gap:8px; color:${T.headerMuted}; font-size:11px; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; margin-bottom:12px; }
+  .dashboard-kicker::before { content:''; width:8px; height:8px; border-radius:50%; background:${T.accent}; box-shadow:0 0 0 5px rgba(196,154,108,.14); }
+  .dashboard-hero h2 { color:${T.headerText}; font-size:44px; line-height:.95; font-weight:600; letter-spacing:0; margin:0 0 12px; max-width:560px; }
+  .dashboard-hero p { color:#E5C2D5; font-size:14px; line-height:1.7; max-width:580px; }
+  .hero-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; position:relative; z-index:1; }
+  .hero-metric { min-height:92px; padding:16px; border-radius:12px; background:rgba(255,255,255,.08); border:1px solid rgba(245,220,235,.16); backdrop-filter:blur(10px); }
+  .hero-metric.with-progress { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .hero-metric-copy { min-width:0; }
+  .hero-metric-label { color:${T.headerMuted}; font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
+  .hero-metric-value { color:#fff; font-family:'Cormorant Garamond',serif; font-size:34px; font-weight:600; line-height:1; }
+  .hero-metric-sub { color:#D9B7C8; font-size:11px; margin-top:7px; }
+  .stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+  .stat-card { background:rgba(255,255,255,.92); border-radius:12px; padding:18px; border:1px solid ${T.border}; position:relative; overflow:hidden; cursor:default; box-shadow:0 12px 30px rgba(61,24,41,.06); }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; bottom:0; width:4px; background:var(--ac); }
+  .stat-label { font-size:10px; color:${T.textMuted}; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
+  .stat-main { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .stat-value { font-family:'Cormorant Garamond',serif; font-size:42px; font-weight:600; line-height:.92; }
+  .stat-sub { font-size:12px; color:${T.textMuted}; margin-top:8px; line-height:1.35; }
+  .progress-ring { --pct:0; --ring:${T.primary}; --ring-track:${T.borderLight}; --ring-center:#fff; --ring-text:${T.text}; width:56px; height:56px; border-radius:50%; display:grid; place-items:center; position:relative; flex:0 0 auto; background:conic-gradient(var(--ring) calc(var(--pct) * 1%), var(--ring-track) 0); }
+  .progress-ring::before { content:''; position:absolute; inset:7px; border-radius:50%; background:var(--ring-center); box-shadow:inset 0 0 0 1px rgba(61,24,41,.04); }
+  .progress-ring span { position:relative; color:var(--ring-text); font-size:12px; font-weight:600; line-height:1; }
+  .progress-ring.dark { --ring-track:rgba(255,255,255,.16); --ring-center:rgba(61,24,41,.72); --ring-text:#fff; width:58px; height:58px; }
+  .card { background:rgba(255,255,255,.95); border-radius:12px; padding:22px; border:1px solid ${T.border}; box-shadow:0 12px 30px rgba(61,24,41,.05); }
+  .card-title { font-size:10px; font-weight:600; color:${T.textMuted}; text-transform:uppercase; letter-spacing:1px; margin-bottom:18px; }
+  .dashboard-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.8fr); gap:20px; }
+  .dashboard-section-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:18px; }
+  .dashboard-section-title { font-family:'Cormorant Garamond',serif; color:${T.text}; font-size:24px; font-weight:600; line-height:1; }
+  .dashboard-section-note { color:${T.textMuted}; font-size:12px; margin-top:5px; }
+  .dashboard-pill { display:inline-flex; align-items:center; height:28px; padding:0 10px; border-radius:999px; background:${T.primaryBg}; color:${T.primaryDark}; font-size:11px; font-weight:600; white-space:nowrap; }
   .charts-row { display:grid; grid-template-columns:1.3fr 0.7fr; gap:20px; margin-bottom:24px; }
-  .cat-list { display:flex; flex-direction:column; gap:13px; }
-  .cat-row { display:flex; align-items:center; gap:10px; }
-  .cat-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
-  .cat-name { font-size:13px; color:${T.textMid}; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .cat-bar-wrap { width:120px; background:${T.borderLight}; border-radius:4px; height:5px; overflow:hidden; flex-shrink:0; }
+  .cat-list { display:flex; flex-direction:column; gap:12px; }
+  .cat-row { display:grid; grid-template-columns:10px minmax(130px,1fr) minmax(120px,34%) 42px 62px; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid ${T.borderLight}; }
+  .cat-row:last-child { border-bottom:0; }
+  .cat-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 5px rgba(176,82,120,.08); }
+  .cat-name { font-size:13px; color:${T.text}; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cat-bar-wrap { width:100%; background:${T.borderLight}; border-radius:999px; height:7px; overflow:hidden; flex-shrink:0; }
   .cat-bar { height:100%; border-radius:4px; }
-  .cat-num { font-size:13px; font-weight:600; color:${T.text}; min-width:28px; text-align:right; }
-  .table-summary { display:flex; flex-wrap:wrap; gap:10px; }
-  .table-chip { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:12px; padding:14px 18px; min-width:110px; }
-  .table-chip-label { font-size:10px; color:${T.textMuted}; font-weight:500; text-transform:uppercase; letter-spacing:.6px; margin-bottom:5px; }
-  .table-chip-val { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; color:${T.text}; line-height:1; }
+  .cat-num { font-size:14px; font-weight:600; color:${T.text}; min-width:28px; text-align:right; }
+  .cat-groups { font-size:11px; color:${T.textMuted}; text-align:right; white-space:nowrap; }
+  .rsvp-panel { min-height:100%; }
+  .rsvp-chart-wrap { position:relative; height:190px; margin-top:-2px; }
+  .rsvp-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
+  .rsvp-center-value { font-family:'Cormorant Garamond',serif; font-size:34px; font-weight:600; color:${T.text}; line-height:1; }
+  .rsvp-center-label { font-size:10px; color:${T.textMuted}; font-weight:600; letter-spacing:.8px; text-transform:uppercase; margin-top:4px; }
+  .rsvp-legend { display:grid; gap:9px; margin-top:10px; }
+  .rsvp-legend-row { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; color:${T.textMid}; }
+  .rsvp-legend-label { display:flex; align-items:center; gap:7px; min-width:0; }
+  .rsvp-legend-dot { width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .rsvp-legend-value { color:${T.text}; font-weight:600; }
+  .table-card { margin-top:0; }
+  .table-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .table-chip { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:10px; padding:14px 16px; min-width:0; }
+  .table-chip-label { font-size:10px; color:${T.textMuted}; font-weight:600; text-transform:uppercase; letter-spacing:.6px; margin-bottom:7px; }
+  .table-chip-val { font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:600; color:${T.text}; line-height:1; }
   .table-chip-sub { font-size:11px; color:${T.textMuted}; margin-top:3px; }
   .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
   .search-wrap { position:relative; flex:1; min-width:200px; }
@@ -223,8 +266,8 @@ const css = `
   .btn-danger:hover { background:#F5C0CC; }
   .btn-sm { padding:6px 12px; font-size:12px; border-radius:7px; }
   .btn:disabled { opacity:.4; cursor:not-allowed; }
-  .table-wrap { background:${T.surface}; border-radius:14px; border:1px solid ${T.border}; overflow:hidden; }
-  table { width:100%; border-collapse:collapse; }
+  .table-wrap { background:${T.surface}; border-radius:14px; border:1px solid ${T.border}; overflow:auto; }
+  table { width:100%; min-width:860px; border-collapse:collapse; }
   thead { background:${T.surfaceAlt}; }
   th { padding:11px 16px; text-align:left; font-size:10px; font-weight:500; color:${T.textMuted}; text-transform:uppercase; letter-spacing:.8px; border-bottom:1px solid ${T.border}; white-space:nowrap; cursor:pointer; user-select:none; }
   th:hover { color:${T.primary}; }
@@ -314,6 +357,64 @@ const css = `
   .toast { position:fixed; bottom:28px; right:28px; background:${T.header}; color:${T.headerText}; padding:13px 22px; border-radius:12px; font-size:13px; font-weight:500; z-index:2000; animation:fadeup .2s; border:1px solid #5C2840; }
   @keyframes fadeup { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
   .empty { text-align:center; padding:60px 20px; }
+  @media (max-width:1100px) {
+    .header { flex-wrap:wrap; height:auto; padding:14px 20px; gap:12px; }
+    .header-brand { min-width:0; }
+    .nav { order:3; width:100%; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+    .nav::-webkit-scrollbar { display:none; }
+    .nav-btn { flex:0 0 auto; }
+    .logout-btn { margin-left:auto; width:auto; }
+    .main { padding:24px 20px; }
+    .dashboard-hero { grid-template-columns:1fr; align-items:start; min-height:auto; }
+    .dashboard-grid, .charts-row { grid-template-columns:1fr; }
+    .stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:720px) {
+    .main { padding:20px 14px; }
+    .top-bar { align-items:flex-start; gap:14px; flex-direction:column; margin-bottom:18px; }
+    .dashboard-topbar { flex-direction:row; align-items:flex-end; }
+    .page-title { font-size:26px; }
+    .dashboard-hero { padding:22px; border-radius:14px; }
+    .dashboard-hero::before { inset:12px; }
+    .dashboard-hero h2 { font-size:34px; line-height:1; }
+    .dashboard-hero p { font-size:13px; }
+    .hero-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .hero-metric { min-height:84px; padding:14px; }
+    .hero-metric-value { font-size:29px; }
+    .stat-grid, .inv-stats { grid-template-columns:1fr; gap:10px; }
+    .stat-card { padding:16px 16px 16px 18px; }
+    .stat-value { font-size:36px; }
+    .card { padding:18px; border-radius:10px; }
+    .dashboard-section-header { align-items:flex-start; }
+    .dashboard-section-title { font-size:22px; }
+    .cat-row { grid-template-columns:10px minmax(0,1fr) 44px; gap:10px; }
+    .cat-bar-wrap { grid-column:2 / -1; grid-row:2; }
+    .cat-groups { display:none; }
+    .rsvp-chart-wrap { height:180px; }
+    .table-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .toolbar, .bulk-bar, .bulk-actions { align-items:stretch; flex-direction:column; }
+    .search-wrap, .filter-select, .results-info, .toolbar .btn { width:100%; }
+    .results-info { margin-left:0; }
+    .modal { max-height:calc(100vh - 24px); }
+    .modal-header { padding:22px 20px 0; }
+    .modal-body { padding:18px 20px 22px; }
+    .form-row, .count-fields { grid-template-columns:1fr; }
+  }
+  @media (max-width:460px) {
+    .header { padding:12px 14px; }
+    .header-title { font-size:20px; }
+    .header-sub { font-size:9px; letter-spacing:1.1px; }
+    .nav-btn { padding:8px 11px; font-size:12px; }
+    .logout-btn { padding:8px 12px; }
+    .dashboard-topbar { flex-direction:column; align-items:stretch; }
+    .dashboard-topbar .btn { justify-content:center; }
+    .dashboard-hero { padding:20px 18px; }
+    .dashboard-hero h2 { font-size:30px; }
+    .hero-metrics, .table-summary { grid-template-columns:1fr; }
+    .hero-metric { min-height:76px; }
+    .dashboard-pill { display:none; }
+    .toast { left:14px; right:14px; bottom:14px; text-align:center; }
+  }
   ::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:${T.surfaceAlt}} ::-webkit-scrollbar-thumb{background:${T.border};border-radius:3px}
 `;
 
@@ -347,6 +448,11 @@ function CountDisplay({ g }) {
 function ColorPicker({ value, onChange }) {
   const [open,setOpen]=useState(false);
   return <div style={{position:"relative"}}><div className="cat-color-swatch" style={{background:value}} onClick={()=>setOpen(o=>!o)}/>{open&&(<><div style={{position:"fixed",inset:0,zIndex:49}} onClick={()=>setOpen(false)}/><div className="color-picker-popover">{PALETTE.map(c=><div key={c} className={`color-option${value===c?" sel":""}`} style={{background:c}} onClick={()=>{onChange(c);setOpen(false);}}/>)}</div></>)}</div>;
+}
+
+function ProgressRing({ value, color, dark=false }) {
+  const pct = Math.max(0, Math.min(100, Number(value)||0));
+  return <div className={`progress-ring${dark?" dark":""}`} style={{"--pct":pct,"--ring":color}}><span>{pct}%</span></div>;
 }
 
 // ── Invitations Tab ───────────────────────────────────────────────────────────
@@ -579,23 +685,162 @@ function Dashboard({ guests, categories }) {
   const confirmedAtt=guests.filter(g=>g.rsvp==="confirmed").reduce((a,g)=>a+getAttending(g),0);
   const pendingAtt=guests.filter(g=>g.rsvp==="pending").reduce((a,g)=>a+getAttending(g),0);
   const declinedAtt=guests.filter(g=>g.rsvp==="declined").reduce((a,g)=>a+getAttending(g),0);
-  const catData=categories.map(cat=>({name:cat.name,color:cat.color,people:guests.filter(g=>g.category===cat.name).reduce((a,g)=>a+getAttending(g),0),entries:guests.filter(g=>g.category===cat.name).length}));
+  const catData=categories.map(cat=>({name:cat.name,color:cat.color,people:guests.filter(g=>g.category===cat.name).reduce((a,g)=>a+getAttending(g),0),entries:guests.filter(g=>g.category===cat.name).length})).sort((a,b)=>b.people-a.people);
   const maxPeople=Math.max(...catData.map(d=>d.people),1);
   const pieData=[{name:"Confirmed",value:confirmedAtt,color:"#2DBD72"},{name:"Pending",value:pendingAtt,color:"#E8A020"},{name:"Declined",value:declinedAtt,color:"#E84060"}].filter(d=>d.value>0);
   const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
   const invSent=guests.filter(g=>g.inviteStatus==="sent"||g.inviteStatus==="delivered").length;
+  const attendancePct=totalInvited>0?Math.round((totalAttending/totalInvited)*100):0;
+  const confirmedPct=totalAttending>0?Math.round((confirmedAtt/totalAttending)*100):0;
+  const pendingPct=totalAttending>0?Math.round((pendingAtt/totalAttending)*100):0;
+  const invitePct=guests.length>0?Math.round((invSent/guests.length)*100):0;
+  const pendingGroups=guests.filter(g=>g.rsvp==="pending").length;
+  const unassigned=guests.filter(g=>!g.table);
+  const tableData=tables.map(t=>{
+    const tg=guests.filter(g=>g.table===t);
+    return { table:t, groups:tg.length, people:tg.reduce((a,g)=>a+getAttending(g),0) };
+  });
+
   return(
-    <div>
+    <div className="dashboard-shell">
+      <section className="dashboard-hero">
+        <div>
+          <div className="dashboard-kicker">Overview</div>
+          <h2>Wedding overview</h2>
+          <p>Guests, RSVPs, invites, and tables.</p>
+        </div>
+        <div className="hero-metrics">
+          <div className="hero-metric">
+            <div className="hero-metric-label">Guest groups</div>
+            <div className="hero-metric-value">{guests.length}</div>
+            <div className="hero-metric-sub">{totalInvited} invited people</div>
+          </div>
+          <div className="hero-metric with-progress">
+            <div className="hero-metric-copy">
+              <div className="hero-metric-label">Confirmed</div>
+              <div className="hero-metric-value">{confirmedPct}%</div>
+              <div className="hero-metric-sub">{confirmedAtt} confirmed guests</div>
+            </div>
+            <ProgressRing value={confirmedPct} color="#2DBD72" dark />
+          </div>
+          <div className="hero-metric with-progress">
+            <div className="hero-metric-copy">
+              <div className="hero-metric-label">Invites sent</div>
+              <div className="hero-metric-value">{invitePct}%</div>
+              <div className="hero-metric-sub">{invSent} of {guests.length} groups</div>
+            </div>
+            <ProgressRing value={invitePct} color={INVITE_STATUS.sent.dot} dark />
+          </div>
+          <div className="hero-metric">
+            <div className="hero-metric-label">Tables</div>
+            <div className="hero-metric-value">{tables.length}</div>
+            <div className="hero-metric-sub">{unassigned.length} groups unassigned</div>
+          </div>
+        </div>
+      </section>
+
       <div className="stat-grid">
-        {[{label:"Attending",value:totalAttending,sub:`of ${totalInvited} invited · ${guests.length} groups`,ac:T.primary},{label:"Confirmed",value:confirmedAtt,sub:`${totalAttending>0?Math.round(confirmedAtt/totalAttending*100):0}% of attending`,ac:"#2DBD72"},{label:"Pending RSVP",value:pendingAtt,sub:`${guests.filter(g=>g.rsvp==="pending").length} groups awaiting`,ac:"#E8A020"},{label:"Invites Sent",value:invSent,sub:`of ${guests.length} total groups`,ac:INVITE_STATUS.sent.dot}].map(s=>(
-          <div key={s.label} className="stat-card" style={{"--ac":s.ac}}><div className="stat-label">{s.label}</div><div className="stat-value" style={{color:s.ac===T.primary?T.text:s.ac}}>{s.value}</div><div className="stat-sub">{s.sub}</div></div>
+        {[{label:"Attending",value:totalAttending,sub:`of ${totalInvited} invited`,ac:T.primary,pct:attendancePct},{label:"Confirmed",value:confirmedAtt,sub:`${confirmedPct}% confirmed`,ac:"#2DBD72",pct:confirmedPct},{label:"Pending RSVP",value:pendingAtt,sub:`${pendingGroups} groups pending`,ac:"#E8A020",pct:pendingPct},{label:"Invites Sent",value:invSent,sub:`${invitePct}% sent`,ac:INVITE_STATUS.sent.dot,pct:invitePct}].map(s=>(
+          <div key={s.label} className="stat-card" style={{"--ac":s.ac}}>
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-main">
+              <div className="stat-value" style={{color:s.ac===T.primary?T.text:s.ac}}>{s.value}</div>
+              <ProgressRing value={s.pct} color={s.ac} />
+            </div>
+            <div className="stat-sub">{s.sub}</div>
+          </div>
         ))}
       </div>
-      <div className="charts-row">
-        <div className="card"><div className="card-title">Attending by category</div><div className="cat-list">{catData.filter(d=>d.entries>0).map(d=>(<div key={d.name} className="cat-row"><span className="cat-dot" style={{background:d.color}}/><span className="cat-name">{d.name}</span><div className="cat-bar-wrap"><div className="cat-bar" style={{width:`${(d.people/maxPeople)*100}%`,background:d.color}}/></div><span className="cat-num">{d.people}</span><span style={{fontSize:11,color:T.textMuted,minWidth:54,textAlign:"right"}}>{d.entries} groups</span></div>))}</div></div>
-        <div className="card"><div className="card-title">RSVP breakdown</div>{pieData.length===0?<div style={{color:T.textMuted,fontSize:13,textAlign:"center",padding:"30px 0"}}>No RSVP data yet</div>:(<><ResponsiveContainer width="100%" height={160}><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={44} outerRadius={72} paddingAngle={3} dataKey="value">{pieData.map((e,i)=><Cell key={i} fill={e.color}/>)}</Pie><Tooltip formatter={(v,n)=>[v+" people",n]}/></PieChart></ResponsiveContainer><div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginTop:8}}>{pieData.map(d=><div key={d.name} style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:d.color,display:"inline-block"}}/><span style={{fontSize:11,color:T.textMid}}>{d.name}: <b>{d.value}</b></span></div>)}</div></>)}</div>
+
+      <div className="dashboard-grid">
+        <section className="card">
+          <div className="dashboard-section-header">
+            <div>
+              <h3 className="dashboard-section-title">Attending by category</h3>
+              <p className="dashboard-section-note">Expected attendance.</p>
+            </div>
+            <span className="dashboard-pill">{categories.length} categories</span>
+          </div>
+          <div className="cat-list">
+            {catData.filter(d=>d.entries>0).map(d=>(
+              <div key={d.name} className="cat-row">
+                <span className="cat-dot" style={{background:d.color}}/>
+                <span className="cat-name" title={d.name}>{d.name}</span>
+                <div className="cat-bar-wrap"><div className="cat-bar" style={{width:`${(d.people/maxPeople)*100}%`,background:d.color}}/></div>
+                <span className="cat-num">{d.people}</span>
+                <span className="cat-groups">{d.entries} groups</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card rsvp-panel">
+          <div className="dashboard-section-header">
+            <div>
+              <h3 className="dashboard-section-title">RSVP breakdown</h3>
+              <p className="dashboard-section-note">{pendingGroups} groups pending.</p>
+            </div>
+          </div>
+          {pieData.length===0?(
+            <div style={{color:T.textMuted,fontSize:13,textAlign:"center",padding:"42px 0"}}>No RSVP data yet</div>
+          ):(
+            <>
+              <div className="rsvp-chart-wrap">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={54} outerRadius={84} paddingAngle={4} dataKey="value">
+                      {pieData.map((e,i)=><Cell key={i} fill={e.color}/>)}
+                    </Pie>
+                    <Tooltip formatter={(v,n)=>[v+" people",n]}/>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="rsvp-center">
+                  <div className="rsvp-center-value">{totalAttending}</div>
+                  <div className="rsvp-center-label">attending</div>
+                </div>
+              </div>
+              <div className="rsvp-legend">
+                {pieData.map(d=>(
+                  <div key={d.name} className="rsvp-legend-row">
+                    <span className="rsvp-legend-label"><span className="rsvp-legend-dot" style={{background:d.color}}/>{d.name}</span>
+                    <span className="rsvp-legend-value">{d.value}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
       </div>
-      <div className="card"><div className="card-title">Table summary</div>{tables.length===0?<span style={{color:T.textMuted,fontSize:13}}>No tables assigned yet</span>:<div className="table-summary">{tables.map(t=>{const tg=guests.filter(g=>g.table===t);const tc=tg.reduce((a,g)=>a+getAttending(g),0);return<div key={t} className="table-chip"><div className="table-chip-label">Table {t}</div><div className="table-chip-val">{tc}</div><div className="table-chip-sub">{tg.length} group{tg.length!==1?"s":""}</div></div>;})}{ guests.filter(g=>!g.table).length>0&&<div className="table-chip" style={{border:`1.5px dashed ${T.border}`,background:"transparent"}}><div className="table-chip-label">Unassigned</div><div className="table-chip-val" style={{color:T.textMuted}}>{guests.filter(g=>!g.table).reduce((a,g)=>a+getAttending(g),0)}</div><div className="table-chip-sub">{guests.filter(g=>!g.table).length} groups</div></div>}</div>}</div>
+
+      <section className="card table-card">
+        <div className="dashboard-section-header">
+          <div>
+            <h3 className="dashboard-section-title">Table summary</h3>
+            <p className="dashboard-section-note">Seating by table.</p>
+          </div>
+          <span className="dashboard-pill">{tables.length || 0} assigned tables</span>
+        </div>
+        {tables.length===0?(
+          <span style={{color:T.textMuted,fontSize:13}}>No tables assigned yet</span>
+        ):(
+          <div className="table-summary">
+            {tableData.map(t=>(
+              <div key={t.table} className="table-chip">
+                <div className="table-chip-label">Table {t.table}</div>
+                <div className="table-chip-val">{t.people}</div>
+                <div className="table-chip-sub">{t.groups} group{t.groups!==1?"s":""}</div>
+              </div>
+            ))}
+            {unassigned.length>0&&(
+              <div className="table-chip" style={{border:`1.5px dashed ${T.border}`,background:"transparent"}}>
+                <div className="table-chip-label">Unassigned</div>
+                <div className="table-chip-val" style={{color:T.textMuted}}>{unassigned.reduce((a,g)=>a+getAttending(g),0)}</div>
+                <div className="table-chip-sub">{unassigned.length} groups</div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -733,11 +978,11 @@ export default function App() {
             <button className={`nav-btn${view==="guests"?" active":""}`} onClick={()=>setView("guests")}>Guest List<span className="nav-count">{guests.length}</span></button>
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
-          </nav><button className="btn btn-ghost" onClick={()=>signOut(auth)}>Logout</button>
+          </nav><button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
         </header>
 
         <main className="main">
-          {view==="dashboard"&&(<><div className="top-bar"><h2 className="page-title">Overview</h2><button className="btn btn-primary" onClick={()=>setView("guests")}>Manage guests →</button></div><Dashboard guests={guests} categories={categories}/></>)}
+          {view==="dashboard"&&(<><div className="top-bar dashboard-topbar"><div><p className="page-eyebrow">Wedding Guest Manager</p><h2 className="page-title">Dashboard</h2></div><button className="btn btn-primary" onClick={()=>setView("guests")}>Manage guests →</button></div><Dashboard guests={guests} categories={categories}/></>)}
 
           {view==="guests"&&(
             <>
