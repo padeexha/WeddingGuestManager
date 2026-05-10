@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
+import { db, auth } from "./firebase";
+import LoginScreen from "./LoginScreen";
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+
+
 const T = {
   bg:"#FDF4F7", surface:"#FFFFFF", surfaceAlt:"#FBF0F4",
   border:"#EDD8E2", borderLight:"#F5E8ED",
@@ -352,6 +358,7 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
   const [selected,setSelected]=useState(new Set());
   const [sortCol,setSortCol]=useState("name");
   const [sortDir,setSortDir]=useState("asc");
+  const [user,setUser]=useState(null);
 
   const notSent=guests.filter(g=>(!g.inviteStatus||g.inviteStatus==="not_sent")).length;
   const sent=guests.filter(g=>g.inviteStatus==="sent").length;
@@ -610,30 +617,78 @@ export default function App() {
   const [nextId,setNextId]=useState(101);
   const [sortCol,setSortCol]=useState("name");
   const [sortDir,setSortDir]=useState("asc");
+  const [user,setUser]=useState(null);
 
   const [splash, setSplash] = useState(true);
 
-  // ── Load from localStorage on mount ────────────────────────────────────────
+  // ── Firebase realtime sync ────────────────────────────────────────
   useEffect(()=>{
-    const savedGuests = lsGet(LS_GUESTS);
-    const savedCats   = lsGet(LS_CATS);
-    if(savedGuests){ setGuests(savedGuests); setNextId(Math.max(...savedGuests.map(g=>g.id),100)+1); }
-    else setGuests(INITIAL_GUESTS);
-    if(savedCats) setCategories(savedCats);
-    setLoading(false);
+
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+
+      if (!u) {
+        setLoading(false);
+        return;
+      }
+
+      const unsubGuests = onSnapshot(
+        doc(db, "wedding", "guests"),
+        async (snap) => {
+
+          if (snap.exists()) {
+            const data = snap.data();
+
+            setGuests(data.guests || INITIAL_GUESTS);
+            setCategories(data.categories || DEFAULT_CATEGORIES);
+
+            setNextId(
+              Math.max(
+                ...(data.guests || []).map(g=>g.id),
+                100
+              ) + 1
+            );
+          } else {
+            await setDoc(doc(db, "wedding", "guests"), {
+              guests: INITIAL_GUESTS,
+              categories: DEFAULT_CATEGORIES
+            });
+
+            setGuests(INITIAL_GUESTS);
+            setCategories(DEFAULT_CATEGORIES);
+          }
+
+          setLoading(false);
+        }
+      );
+
+      return () => unsubGuests();
+    });
+
     const t = setTimeout(()=>setSplash(false), 2200);
-    return ()=>clearTimeout(t);
+
+    return ()=>{
+      clearTimeout(t);
+      unsubAuth();
+    };
+
   },[]);
 
-  // ── Persist helpers (synchronous localStorage) ──────────────────────────────
-  const saveGuests = useCallback((gs) => lsSet(LS_GUESTS, gs), []);
-  const saveCats   = useCallback((cs) => lsSet(LS_CATS,   cs), []);
+  const saveToCloud = async (updatedGuests, updatedCategories) => {
+    await setDoc(
+      doc(db, "wedding", "guests"),
+      {
+        guests: updatedGuests,
+        categories: updatedCategories
+      }
+    );
+  };
 
   const showToast=(msg)=>{setToast(msg);setTimeout(()=>setToast(null),2400);};
-  const updateGuests=(gs)=>{setGuests(gs);saveGuests(gs);};
+  const updateGuests=async(gs)=>{setGuests(gs);await saveToCloud(gs,categories);};
 
   const smartSetCategories=(newCats,renamedFrom,renamedTo)=>{
-    setCategories(newCats); saveCats(newCats);
+    setCategories(newCats); saveToCloud(guests,newCats);
     if(renamedFrom&&renamedTo){ const u=guests.map(g=>g.category===renamedFrom?{...g,category:renamedTo}:g); updateGuests(u); }
   };
 
@@ -663,7 +718,9 @@ export default function App() {
   const SH=({col})=>(<span style={{color:sortCol===col?T.primary:T.borderLight,marginLeft:4,fontSize:10}}>{sortCol===col?(sortDir==="asc"?"▲":"▼"):"⇅"}</span>);
   const invSentCount=guests.filter(g=>g.inviteStatus==="sent"||g.inviteStatus==="delivered").length;
 
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:T.text}}>🪷</div>;
+  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"\'Cormorant Garamond\',serif",fontSize:26,color:T.text}}>🪷</div>;
+
+  if(!user) return <LoginScreen />;
 
   return(
     <>
@@ -676,7 +733,7 @@ export default function App() {
             <button className={`nav-btn${view==="guests"?" active":""}`} onClick={()=>setView("guests")}>Guest List<span className="nav-count">{guests.length}</span></button>
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
-          </nav>
+          </nav><button className="btn btn-ghost" onClick={()=>signOut(auth)}>Logout</button>
         </header>
 
         <main className="main">
