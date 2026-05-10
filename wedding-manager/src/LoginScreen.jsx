@@ -6,83 +6,98 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const login = async () => {
+  const login = async (event) => {
+    event.preventDefault();
+
     try {
+      setError("");
       setLoading(true);
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
-      alert(err.message);
+      const friendlyMessage =
+        err?.code === "auth/invalid-credential" ||
+        err?.code === "auth/wrong-password" ||
+        err?.code === "auth/user-not-found"
+          ? "Email or password is incorrect."
+          : err?.message || "Unable to sign in right now.";
+
+      setError(friendlyMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  const canSubmit = Boolean(email.trim() && password && !loading);
+
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#FDF4F7"
-      }}
-    >
-      <div
-        style={{
-          width: 340,
-          background: "white",
-          padding: 30,
-          borderRadius: 20,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)"
-        }}
-      >
-        <h2 style={{ marginBottom: 20 }}>
-          Wedding Manager Login
-        </h2>
+    <div className="login-screen">
+      <div className="login-layout">
+        <section className="login-panel" aria-labelledby="login-title">
+          <div className="login-brand">
+            <span className="login-mark" aria-hidden="true" />
+            <div>
+              <p className="login-couple">Thulani & Isuru</p>
+              <p className="login-app-name">Wedding Guest Manager</p>
+            </div>
+          </div>
 
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e)=>setEmail(e.target.value)}
-          style={{
-            width:"100%",
-            marginBottom:12,
-            padding:12,
-            borderRadius:10,
-            border:"1px solid #ddd"
-          }}
-        />
+          <div className="login-heading">
+            <p className="login-eyebrow">Private access</p>
+            <h1 id="login-title">Welcome back</h1>
+            <p>Sign in to continue planning.</p>
+          </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e)=>setPassword(e.target.value)}
-          style={{
-            width:"100%",
-            marginBottom:20,
-            padding:12,
-            borderRadius:10,
-            border:"1px solid #ddd"
-          }}
-        />
+          <form className="login-form" onSubmit={login}>
+            <label className="login-field">
+              <span>Email address</span>
+              <input
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+              />
+            </label>
 
-        <button
-          onClick={login}
-          disabled={loading}
-          style={{
-            width:"100%",
-            padding:12,
-            background:"#B05278",
-            color:"white",
-            border:"none",
-            borderRadius:10,
-            cursor:"pointer"
-          }}
-        >
-          {loading ? "Logging in..." : "Login"}
-        </button>
+            <label className="login-field">
+              <span>Password</span>
+              <input
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+
+            {error && (
+              <div className="login-error" role="alert">
+                {error}
+              </div>
+            )}
+
+            <button className="login-submit" type="submit" disabled={!canSubmit}>
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+        </section>
+
+        <aside className="login-visual" aria-hidden="true">
+          <div className="login-arch">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="login-vow-lines">
+            <span />
+            <span />
+            <span />
+          </div>
+        </aside>
       </div>
     </div>
   );
