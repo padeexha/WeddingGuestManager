@@ -1,0 +1,24 @@
+# Firebase Setup
+
+1. Run:
+npm install
+
+2. Start:
+npm run dev
+
+3. Firebase Auth:
+Enable Email/Password authentication.
+
+4. Create first user inside Firebase Console.
+
+5. Firestore Rules:
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
