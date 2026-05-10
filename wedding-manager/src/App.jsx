@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 import { db, auth } from "./firebase";
 import LoginScreen from "./LoginScreen";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
 
@@ -15,6 +15,25 @@ const T = {
   accent:"#C49A6C",
   text:"#2C1220", textMid:"#7A4D63", textMuted:"#B89AAA",
   tag:"#F0DCE5", tagText:"#8E3D5F",
+};
+
+const ADMIN_EMAIL = "admin@tiw.com";
+const isAdminUser = (user) => user?.email?.toLowerCase() === ADMIN_EMAIL;
+const auditCollection = () => collection(db, "wedding", "guests", "auditLogs");
+const logAuditEvent = async (user, action, details={}) => {
+  if(!user) return;
+  try {
+    await addDoc(auditCollection(), {
+      action,
+      details,
+      userEmail:user.email||"unknown",
+      userName:user.displayName||user.email?.split("@")[0]||"Unknown user",
+      userUid:user.uid||null,
+      createdAt:serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("Audit log failed", err);
+  }
 };
 
 const INVITE_STATUS = {
@@ -195,12 +214,11 @@ const css = `
   .dashboard-hero::after { content:''; position:absolute; right:-120px; top:-150px; width:380px; height:380px; border:1px solid rgba(196,154,108,.28); border-radius:50%; pointer-events:none; }
   .dashboard-kicker { display:inline-flex; align-items:center; gap:8px; color:${T.headerMuted}; font-size:11px; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; margin-bottom:12px; }
   .dashboard-kicker::before { content:''; width:8px; height:8px; border-radius:50%; background:${T.accent}; box-shadow:0 0 0 5px rgba(196,154,108,.14); }
+  .dashboard-welcome { color:#fff; font-size:15px; font-weight:500; margin-bottom:8px; }
   .dashboard-hero h2 { color:${T.headerText}; font-size:44px; line-height:.95; font-weight:600; letter-spacing:0; margin:0 0 12px; max-width:560px; }
   .dashboard-hero p { color:#E5C2D5; font-size:14px; line-height:1.7; max-width:580px; }
   .hero-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; position:relative; z-index:1; }
   .hero-metric { min-height:92px; padding:16px; border-radius:12px; background:rgba(255,255,255,.08); border:1px solid rgba(245,220,235,.16); backdrop-filter:blur(10px); }
-  .hero-metric.with-progress { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .hero-metric-copy { min-width:0; }
   .hero-metric-label { color:${T.headerMuted}; font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
   .hero-metric-value { color:#fff; font-family:'Cormorant Garamond',serif; font-size:34px; font-weight:600; line-height:1; }
   .hero-metric-sub { color:#D9B7C8; font-size:11px; margin-top:7px; }
@@ -208,13 +226,8 @@ const css = `
   .stat-card { background:rgba(255,255,255,.92); border-radius:12px; padding:18px; border:1px solid ${T.border}; position:relative; overflow:hidden; cursor:default; box-shadow:0 12px 30px rgba(61,24,41,.06); }
   .stat-card::before { content:''; position:absolute; top:0; left:0; bottom:0; width:4px; background:var(--ac); }
   .stat-label { font-size:10px; color:${T.textMuted}; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
-  .stat-main { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .stat-value { font-family:'Cormorant Garamond',serif; font-size:42px; font-weight:600; line-height:.92; }
   .stat-sub { font-size:12px; color:${T.textMuted}; margin-top:8px; line-height:1.35; }
-  .progress-ring { --pct:0; --ring:${T.primary}; --ring-track:${T.borderLight}; --ring-center:#fff; --ring-text:${T.text}; width:56px; height:56px; border-radius:50%; display:grid; place-items:center; position:relative; flex:0 0 auto; background:conic-gradient(var(--ring) calc(var(--pct) * 1%), var(--ring-track) 0); }
-  .progress-ring::before { content:''; position:absolute; inset:7px; border-radius:50%; background:var(--ring-center); box-shadow:inset 0 0 0 1px rgba(61,24,41,.04); }
-  .progress-ring span { position:relative; color:var(--ring-text); font-size:12px; font-weight:600; line-height:1; }
-  .progress-ring.dark { --ring-track:rgba(255,255,255,.16); --ring-center:rgba(61,24,41,.72); --ring-text:#fff; width:58px; height:58px; }
   .card { background:rgba(255,255,255,.95); border-radius:12px; padding:22px; border:1px solid ${T.border}; box-shadow:0 12px 30px rgba(61,24,41,.05); }
   .card-title { font-size:10px; font-weight:600; color:${T.textMuted}; text-transform:uppercase; letter-spacing:1px; margin-bottom:18px; }
   .dashboard-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.8fr); gap:20px; }
@@ -243,11 +256,19 @@ const css = `
   .rsvp-legend-dot { width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
   .rsvp-legend-value { color:${T.text}; font-weight:600; }
   .table-card { margin-top:0; }
-  .table-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
-  .table-chip { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:10px; padding:14px 16px; min-width:0; }
-  .table-chip-label { font-size:10px; color:${T.textMuted}; font-weight:600; text-transform:uppercase; letter-spacing:.6px; margin-bottom:7px; }
-  .table-chip-val { font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:600; color:${T.text}; line-height:1; }
-  .table-chip-sub { font-size:11px; color:${T.textMuted}; margin-top:3px; }
+  .table-overview { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+  .table-overview-item { background:${T.surfaceAlt}; border:1px solid ${T.borderLight}; border-radius:10px; padding:13px 14px; }
+  .table-overview-label { font-size:10px; color:${T.textMuted}; font-weight:600; letter-spacing:.7px; text-transform:uppercase; margin-bottom:6px; white-space:nowrap; }
+  .table-overview-value { font-family:'Cormorant Garamond',serif; font-size:29px; font-weight:600; color:${T.text}; line-height:1; }
+  .table-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  .table-chip { background:#fff; border:1px solid ${T.border}; border-radius:10px; padding:14px; min-width:0; display:grid; gap:11px; }
+  .table-chip.unassigned { background:transparent; border:1.5px dashed ${T.border}; }
+  .table-chip-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .table-chip-label { font-size:10px; color:${T.textMuted}; font-weight:600; text-transform:uppercase; letter-spacing:.7px; }
+  .table-chip-val { font-family:'Cormorant Garamond',serif; font-size:34px; font-weight:600; color:${T.text}; line-height:.9; }
+  .table-chip-sub { font-size:12px; color:${T.textMuted}; line-height:1.25; }
+  .table-load { height:6px; border-radius:999px; background:${T.borderLight}; overflow:hidden; }
+  .table-load-bar { height:100%; border-radius:999px; background:${T.primary}; min-width:8px; }
   .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
   .search-wrap { position:relative; flex:1; min-width:200px; }
   .search-wrap input { width:100%; padding:9px 12px 9px 36px; border:1px solid ${T.border}; border-radius:9px; font-size:13px; font-family:'Jost',sans-serif; background:${T.surface}; outline:none; color:${T.text}; }
@@ -354,6 +375,15 @@ const css = `
   .color-option { width:26px; height:26px; border-radius:7px; cursor:pointer; border:2px solid transparent; transition:transform .1s; }
   .color-option:hover { transform:scale(1.12); }
   .color-option.sel { border-color:${T.text}; }
+  .audit-list { display:grid; gap:10px; }
+  .audit-row { display:grid; grid-template-columns:160px minmax(140px,.6fr) minmax(0,1fr); gap:14px; align-items:center; background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; padding:14px 16px; }
+  .audit-time { color:${T.textMuted}; font-size:12px; white-space:nowrap; }
+  .audit-user { min-width:0; }
+  .audit-user-name { color:${T.text}; font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .audit-user-email { color:${T.textMuted}; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .audit-action { min-width:0; }
+  .audit-action-title { color:${T.text}; font-size:13px; font-weight:600; }
+  .audit-action-detail { color:${T.textMuted}; font-size:12px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .toast { position:fixed; bottom:28px; right:28px; background:${T.header}; color:${T.headerText}; padding:13px 22px; border-radius:12px; font-size:13px; font-weight:500; z-index:2000; animation:fadeup .2s; border:1px solid #5C2840; }
   @keyframes fadeup { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
   .empty { text-align:center; padding:60px 20px; }
@@ -391,7 +421,7 @@ const css = `
     .cat-bar-wrap { grid-column:2 / -1; grid-row:2; }
     .cat-groups { display:none; }
     .rsvp-chart-wrap { height:180px; }
-    .table-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .table-overview, .table-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .toolbar, .bulk-bar, .bulk-actions { align-items:stretch; flex-direction:column; }
     .search-wrap, .filter-select, .results-info, .toolbar .btn { width:100%; }
     .results-info { margin-left:0; }
@@ -399,6 +429,8 @@ const css = `
     .modal-header { padding:22px 20px 0; }
     .modal-body { padding:18px 20px 22px; }
     .form-row, .count-fields { grid-template-columns:1fr; }
+    .audit-row { grid-template-columns:1fr; gap:8px; }
+    .audit-action-detail { white-space:normal; }
   }
   @media (max-width:460px) {
     .header { padding:12px 14px; }
@@ -410,7 +442,7 @@ const css = `
     .dashboard-topbar .btn { justify-content:center; }
     .dashboard-hero { padding:20px 18px; }
     .dashboard-hero h2 { font-size:30px; }
-    .hero-metrics, .table-summary { grid-template-columns:1fr; }
+    .hero-metrics, .table-overview, .table-summary { grid-template-columns:1fr; }
     .hero-metric { min-height:76px; }
     .dashboard-pill { display:none; }
     .toast { left:14px; right:14px; bottom:14px; text-align:center; }
@@ -450,11 +482,6 @@ function ColorPicker({ value, onChange }) {
   return <div style={{position:"relative"}}><div className="cat-color-swatch" style={{background:value}} onClick={()=>setOpen(o=>!o)}/>{open&&(<><div style={{position:"fixed",inset:0,zIndex:49}} onClick={()=>setOpen(false)}/><div className="color-picker-popover">{PALETTE.map(c=><div key={c} className={`color-option${value===c?" sel":""}`} style={{background:c}} onClick={()=>{onChange(c);setOpen(false);}}/>)}</div></>)}</div>;
 }
 
-function ProgressRing({ value, color, dark=false }) {
-  const pct = Math.max(0, Math.min(100, Number(value)||0));
-  return <div className={`progress-ring${dark?" dark":""}`} style={{"--pct":pct,"--ring":color}}><span>{pct}%</span></div>;
-}
-
 // ── Invitations Tab ───────────────────────────────────────────────────────────
 
 function InvitationsTab({ guests, updateGuests, categories, showToast }) {
@@ -492,7 +519,7 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
 
   const updateStatus=(ids,status)=>{
     const dateVal=(status==="sent"||status==="delivered")?today():null;
-    updateGuests(guests.map(g=>ids.includes(g.id)?{...g,inviteStatus:status,inviteSentDate:dateVal}:g));
+    updateGuests(guests.map(g=>ids.includes(g.id)?{...g,inviteStatus:status,inviteSentDate:dateVal}:g),{action:"bulk_invite_status_changed",details:{count:ids.length,status}});
     setSelected(new Set());
     const lbl=status==="not_sent"?"Not Sent":status==="sent"?"Sent":"Delivered";
     showToast(`${ids.length} guest${ids.length!==1?"s":""} marked as ${lbl} ✓`);
@@ -500,7 +527,8 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
 
   const handleSingle=(id,newStatus)=>{
     const dateVal=(newStatus==="sent"||newStatus==="delivered")?today():null;
-    updateGuests(guests.map(g=>g.id===id?{...g,inviteStatus:newStatus,inviteSentDate:dateVal}:g));
+    const guest=guests.find(g=>g.id===id);
+    updateGuests(guests.map(g=>g.id===id?{...g,inviteStatus:newStatus,inviteSentDate:dateVal}:g),{action:"invite_status_changed",details:{guestId:id,guestName:guest?.name,status:newStatus}});
   };
 
   const SH=({col})=>(<span style={{color:sortCol===col?T.primary:T.borderLight,marginLeft:4,fontSize:10}}>{sortCol===col?(sortDir==="asc"?"▲":"▼"):"⇅"}</span>);
@@ -616,10 +644,10 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
 function CategoryManager({ categories, setCategories, guests, showToast }) {
   const [newName,setNewName]=useState("");
   const [newColor,setNewColor]=useState(PALETTE[5]);
-  const handleRename=(idx,name)=>{const old=categories[idx].name;if(!name.trim()||name===old)return;setCategories(categories.map((c,i)=>i===idx?{...c,name:name.trim()}:c),old,name.trim());showToast(`Renamed to "${name.trim()}" ✓`);};
-  const handleRecolor=(idx,color)=>setCategories(categories.map((c,i)=>i===idx?{...c,color}:c));
-  const handleAdd=()=>{const t=newName.trim();if(!t)return;if(categories.find(c=>c.name.toLowerCase()===t.toLowerCase())){showToast("Already exists");return;}setCategories([...categories,{name:t,color:newColor}]);setNewName("");setNewColor(PALETTE[Math.floor(Math.random()*PALETTE.length)]);showToast(`"${t}" added ✓`);};
-  const handleDelete=(idx)=>{const cat=categories[idx];const n=guests.filter(g=>g.category===cat.name).length;if(n>0){showToast(`${n} guest${n!==1?"s":""} in this category — reassign first`);return;}setCategories(categories.filter((_,i)=>i!==idx));showToast(`"${cat.name}" removed`);};
+  const handleRename=(idx,name)=>{const old=categories[idx].name;const next=name.trim();if(!next||next===old)return;setCategories(categories.map((c,i)=>i===idx?{...c,name:next}:c),old,next,{action:"category_renamed",details:{from:old,to:next}});showToast(`Renamed to "${next}" ✓`);};
+  const handleRecolor=(idx,color)=>setCategories(categories.map((c,i)=>i===idx?{...c,color}:c),null,null,{action:"category_recolored",details:{categoryName:categories[idx].name}});
+  const handleAdd=()=>{const t=newName.trim();if(!t)return;if(categories.find(c=>c.name.toLowerCase()===t.toLowerCase())){showToast("Already exists");return;}setCategories([...categories,{name:t,color:newColor}],null,null,{action:"category_added",details:{categoryName:t}});setNewName("");setNewColor(PALETTE[Math.floor(Math.random()*PALETTE.length)]);showToast(`"${t}" added ✓`);};
+  const handleDelete=(idx)=>{const cat=categories[idx];const n=guests.filter(g=>g.category===cat.name).length;if(n>0){showToast(`${n} guest${n!==1?"s":""} in this category — reassign first`);return;}setCategories(categories.filter((_,i)=>i!==idx),null,null,{action:"category_deleted",details:{categoryName:cat.name}});showToast(`"${cat.name}" removed`);};
   return(
     <div className="cat-manager">
       <div className="top-bar"><h2 className="page-title">Categories</h2></div>
@@ -679,7 +707,7 @@ function GuestModal({ guest, categories, onClose, onSave }) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-function Dashboard({ guests, categories }) {
+function Dashboard({ guests, categories, user }) {
   const totalInvited=guests.reduce((a,g)=>a+g.count,0);
   const totalAttending=guests.reduce((a,g)=>a+getAttending(g),0);
   const confirmedAtt=guests.filter(g=>g.rsvp==="confirmed").reduce((a,g)=>a+getAttending(g),0);
@@ -690,24 +718,26 @@ function Dashboard({ guests, categories }) {
   const pieData=[{name:"Confirmed",value:confirmedAtt,color:"#2DBD72"},{name:"Pending",value:pendingAtt,color:"#E8A020"},{name:"Declined",value:declinedAtt,color:"#E84060"}].filter(d=>d.value>0);
   const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
   const invSent=guests.filter(g=>g.inviteStatus==="sent"||g.inviteStatus==="delivered").length;
-  const attendancePct=totalInvited>0?Math.round((totalAttending/totalInvited)*100):0;
   const confirmedPct=totalAttending>0?Math.round((confirmedAtt/totalAttending)*100):0;
-  const pendingPct=totalAttending>0?Math.round((pendingAtt/totalAttending)*100):0;
   const invitePct=guests.length>0?Math.round((invSent/guests.length)*100):0;
   const pendingGroups=guests.filter(g=>g.rsvp==="pending").length;
   const unassigned=guests.filter(g=>!g.table);
+  const unassignedPeople=unassigned.reduce((a,g)=>a+getAttending(g),0);
   const tableData=tables.map(t=>{
     const tg=guests.filter(g=>g.table===t);
     return { table:t, groups:tg.length, people:tg.reduce((a,g)=>a+getAttending(g),0) };
   });
+  const seatedPeople=tableData.reduce((a,t)=>a+t.people,0);
+  const maxTablePeople=Math.max(...tableData.map(t=>t.people), unassignedPeople, 1);
+  const userName=user?.displayName||user?.email?.split("@")[0]||"there";
 
   return(
     <div className="dashboard-shell">
       <section className="dashboard-hero">
         <div>
           <div className="dashboard-kicker">Overview</div>
+          <div className="dashboard-welcome">Welcome, {userName}</div>
           <h2>Wedding overview</h2>
-          <p>Guests, RSVPs, invites, and tables.</p>
         </div>
         <div className="hero-metrics">
           <div className="hero-metric">
@@ -715,21 +745,15 @@ function Dashboard({ guests, categories }) {
             <div className="hero-metric-value">{guests.length}</div>
             <div className="hero-metric-sub">{totalInvited} invited people</div>
           </div>
-          <div className="hero-metric with-progress">
-            <div className="hero-metric-copy">
-              <div className="hero-metric-label">Confirmed</div>
-              <div className="hero-metric-value">{confirmedPct}%</div>
-              <div className="hero-metric-sub">{confirmedAtt} confirmed guests</div>
-            </div>
-            <ProgressRing value={confirmedPct} color="#2DBD72" dark />
+          <div className="hero-metric">
+            <div className="hero-metric-label">Confirmed</div>
+            <div className="hero-metric-value">{confirmedPct}%</div>
+            <div className="hero-metric-sub">{confirmedAtt} confirmed guests</div>
           </div>
-          <div className="hero-metric with-progress">
-            <div className="hero-metric-copy">
-              <div className="hero-metric-label">Invites sent</div>
-              <div className="hero-metric-value">{invitePct}%</div>
-              <div className="hero-metric-sub">{invSent} of {guests.length} groups</div>
-            </div>
-            <ProgressRing value={invitePct} color={INVITE_STATUS.sent.dot} dark />
+          <div className="hero-metric">
+            <div className="hero-metric-label">Invites sent</div>
+            <div className="hero-metric-value">{invitePct}%</div>
+            <div className="hero-metric-sub">{invSent} of {guests.length} groups</div>
           </div>
           <div className="hero-metric">
             <div className="hero-metric-label">Tables</div>
@@ -740,13 +764,10 @@ function Dashboard({ guests, categories }) {
       </section>
 
       <div className="stat-grid">
-        {[{label:"Attending",value:totalAttending,sub:`of ${totalInvited} invited`,ac:T.primary,pct:attendancePct},{label:"Confirmed",value:confirmedAtt,sub:`${confirmedPct}% confirmed`,ac:"#2DBD72",pct:confirmedPct},{label:"Pending RSVP",value:pendingAtt,sub:`${pendingGroups} groups pending`,ac:"#E8A020",pct:pendingPct},{label:"Invites Sent",value:invSent,sub:`${invitePct}% sent`,ac:INVITE_STATUS.sent.dot,pct:invitePct}].map(s=>(
+        {[{label:"Attending",value:totalAttending,sub:`of ${totalInvited} invited`,ac:T.primary},{label:"Confirmed",value:confirmedAtt,sub:`${confirmedPct}% confirmed`,ac:"#2DBD72"},{label:"Pending RSVP",value:pendingAtt,sub:`${pendingGroups} groups pending`,ac:"#E8A020"},{label:"Invites Sent",value:invSent,sub:`${invitePct}% sent`,ac:INVITE_STATUS.sent.dot}].map(s=>(
           <div key={s.label} className="stat-card" style={{"--ac":s.ac}}>
             <div className="stat-label">{s.label}</div>
-            <div className="stat-main">
-              <div className="stat-value" style={{color:s.ac===T.primary?T.text:s.ac}}>{s.value}</div>
-              <ProgressRing value={s.pct} color={s.ac} />
-            </div>
+            <div className="stat-value" style={{color:s.ac===T.primary?T.text:s.ac}}>{s.value}</div>
             <div className="stat-sub">{s.sub}</div>
           </div>
         ))}
@@ -823,24 +844,112 @@ function Dashboard({ guests, categories }) {
         {tables.length===0?(
           <span style={{color:T.textMuted,fontSize:13}}>No tables assigned yet</span>
         ):(
-          <div className="table-summary">
-            {tableData.map(t=>(
-              <div key={t.table} className="table-chip">
-                <div className="table-chip-label">Table {t.table}</div>
-                <div className="table-chip-val">{t.people}</div>
-                <div className="table-chip-sub">{t.groups} group{t.groups!==1?"s":""}</div>
-              </div>
-            ))}
-            {unassigned.length>0&&(
-              <div className="table-chip" style={{border:`1.5px dashed ${T.border}`,background:"transparent"}}>
-                <div className="table-chip-label">Unassigned</div>
-                <div className="table-chip-val" style={{color:T.textMuted}}>{unassigned.reduce((a,g)=>a+getAttending(g),0)}</div>
-                <div className="table-chip-sub">{unassigned.length} groups</div>
-              </div>
-            )}
-          </div>
+          <>
+            <div className="table-overview">
+              <div className="table-overview-item"><div className="table-overview-label">Seated guests</div><div className="table-overview-value">{seatedPeople}</div></div>
+              <div className="table-overview-item"><div className="table-overview-label">Assigned tables</div><div className="table-overview-value">{tables.length}</div></div>
+              <div className="table-overview-item"><div className="table-overview-label">Unassigned</div><div className="table-overview-value">{unassignedPeople}</div></div>
+            </div>
+            <div className="table-summary">
+              {tableData.map(t=>(
+                <div key={t.table} className="table-chip">
+                  <div className="table-chip-head">
+                    <div>
+                      <div className="table-chip-label">Table {t.table}</div>
+                      <div className="table-chip-sub">{t.groups} group{t.groups!==1?"s":""}</div>
+                    </div>
+                    <div className="table-chip-val">{t.people}</div>
+                  </div>
+                  <div className="table-load"><div className="table-load-bar" style={{width:`${(t.people/maxTablePeople)*100}%`}}/></div>
+                </div>
+              ))}
+              {unassigned.length>0&&(
+                <div className="table-chip unassigned">
+                  <div className="table-chip-head">
+                    <div>
+                      <div className="table-chip-label">Unassigned</div>
+                      <div className="table-chip-sub">{unassigned.length} groups</div>
+                    </div>
+                    <div className="table-chip-val" style={{color:T.textMuted}}>{unassignedPeople}</div>
+                  </div>
+                  <div className="table-load"><div className="table-load-bar" style={{width:`${(unassignedPeople/maxTablePeople)*100}%`,background:T.textMuted}}/></div>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </section>
+    </div>
+  );
+}
+
+// ── Audit Logs ────────────────────────────────────────────────────────────────
+
+const AUDIT_LABELS = {
+  login:"Logged in",
+  guest_added:"Added guest",
+  guest_updated:"Updated guest",
+  guest_deleted:"Deleted guest",
+  guests_updated:"Updated guests",
+  rsvp_changed:"Changed RSVP",
+  invite_status_changed:"Changed invite status",
+  bulk_invite_status_changed:"Bulk invite update",
+  category_added:"Added category",
+  category_renamed:"Renamed category",
+  category_recolored:"Changed category color",
+  category_deleted:"Deleted category",
+  categories_updated:"Updated categories",
+};
+
+const fmtAuditTime = (value) => {
+  const date = value?.toDate ? value.toDate() : null;
+  if(!date) return "Just now";
+  return date.toLocaleString("en-GB", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+};
+
+const auditDetail = (log) => {
+  const d = log.details||{};
+  if(log.action==="login") return "Session started";
+  if(d.guestName) return d.to ? `${d.guestName} → ${d.to}` : d.guestName;
+  if(d.status) return d.count ? `${d.count} guests → ${d.status}` : `Status → ${d.status}`;
+  if(d.from&&d.to) return `${d.from} → ${d.to}`;
+  if(d.categoryName) return d.categoryName;
+  if(d.count) return `${d.count} records`;
+  return "";
+};
+
+function AuditLogsTab({ logs, loading }) {
+  return(
+    <div>
+      <div className="top-bar">
+        <div>
+          <p className="page-eyebrow">Admin only</p>
+          <h2 className="page-title">Audit Logs</h2>
+        </div>
+      </div>
+      <div className="card">
+        {loading?(
+          <div className="empty"><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:T.textMuted}}>Loading audit logs…</div></div>
+        ):logs.length===0?(
+          <div className="empty"><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:T.textMuted}}>No audit logs yet</div></div>
+        ):(
+          <div className="audit-list">
+            {logs.map(log=>(
+              <div className="audit-row" key={log.id}>
+                <div className="audit-time">{fmtAuditTime(log.createdAt)}</div>
+                <div className="audit-user">
+                  <div className="audit-user-name">{log.userName||"Unknown user"}</div>
+                  <div className="audit-user-email">{log.userEmail||"unknown"}</div>
+                </div>
+                <div className="audit-action">
+                  <div className="audit-action-title">{AUDIT_LABELS[log.action]||log.action}</div>
+                  {auditDetail(log)&&<div className="audit-action-detail">{auditDetail(log)}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -863,8 +972,11 @@ export default function App() {
   const [sortCol,setSortCol]=useState("name");
   const [sortDir,setSortDir]=useState("asc");
   const [user,setUser]=useState(null);
+  const [auditLogs,setAuditLogs]=useState([]);
+  const [auditLoading,setAuditLoading]=useState(false);
 
   const [splash, setSplash] = useState(true);
+  const isAdmin = isAdminUser(user);
 
   // ── Firebase realtime sync ────────────────────────────────────────
   useEffect(()=>{
@@ -875,6 +987,16 @@ export default function App() {
       if (!u) {
         setLoading(false);
         return;
+      }
+
+      try {
+        const key = `wg_audit_login_${u.uid}`;
+        if (!sessionStorage.getItem(key)) {
+          sessionStorage.setItem(key, "1");
+          logAuditEvent(u, "login");
+        }
+      } catch {
+        logAuditEvent(u, "login");
       }
 
       const unsubGuests = onSnapshot(
@@ -919,6 +1041,27 @@ export default function App() {
 
   },[]);
 
+  useEffect(()=>{
+    if(!isAdmin && view==="audit") setView("dashboard");
+  },[isAdmin,view]);
+
+  useEffect(()=>{
+    if(!isAdmin) {
+      setAuditLogs([]);
+      setAuditLoading(false);
+      return;
+    }
+
+    setAuditLoading(true);
+    const q = query(auditCollection(), orderBy("createdAt","desc"), limit(100));
+    return onSnapshot(q, (snap)=>{
+      setAuditLogs(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setAuditLoading(false);
+    }, ()=>{
+      setAuditLoading(false);
+    });
+  },[isAdmin]);
+
   const saveToCloud = async (updatedGuests, updatedCategories) => {
     await setDoc(
       doc(db, "wedding", "guests"),
@@ -929,22 +1072,38 @@ export default function App() {
     );
   };
 
+  const logAudit = useCallback((action, details={})=>logAuditEvent(user, action, details),[user]);
   const showToast=(msg)=>{setToast(msg);setTimeout(()=>setToast(null),2400);};
-  const updateGuests=async(gs)=>{setGuests(gs);await saveToCloud(gs,categories);};
-
-  const smartSetCategories=(newCats,renamedFrom,renamedTo)=>{
-    setCategories(newCats); saveToCloud(guests,newCats);
-    if(renamedFrom&&renamedTo){ const u=guests.map(g=>g.category===renamedFrom?{...g,category:renamedTo}:g); updateGuests(u); }
+  const updateGuests=async(gs,audit={action:"guests_updated"})=>{
+    setGuests(gs);
+    await saveToCloud(gs,categories);
+    await logAudit(audit.action||"guests_updated", audit.details||{count:gs.length});
   };
 
-  const handleRsvpChange=(id,rsvp)=>updateGuests(guests.map(g=>g.id===id?{...g,rsvp}:g));
+  const smartSetCategories=async(newCats,renamedFrom,renamedTo,audit={action:"categories_updated"})=>{
+    setCategories(newCats);
+    await saveToCloud(guests,newCats);
+    await logAudit(audit.action||"categories_updated", audit.details||{count:newCats.length});
+    if(renamedFrom&&renamedTo){
+      const u=guests.map(g=>g.category===renamedFrom?{...g,category:renamedTo}:g);
+      setGuests(u);
+      await saveToCloud(u,newCats);
+      await logAudit("guests_updated",{from:renamedFrom,to:renamedTo});
+    }
+  };
+
+  const handleRsvpChange=(id,rsvp)=>{
+    const guest=guests.find(g=>g.id===id);
+    updateGuests(guests.map(g=>g.id===id?{...g,rsvp}:g),{action:"rsvp_changed",details:{guestId:id,guestName:guest?.name,to:rsvp}});
+  };
   const handleSave=(guest)=>{
     let updated;
-    if(!guest.id){updated=[...guests,{...guest,id:nextId,inviteStatus:guest.inviteStatus||"not_sent",inviteSentDate:guest.inviteSentDate||null}];setNextId(n=>n+1);showToast("Guest added ✓");}
-    else{updated=guests.map(g=>g.id===guest.id?guest:g);showToast("Saved ✓");}
-    updateGuests(updated);setModalGuest(null);
+    let audit;
+    if(!guest.id){updated=[...guests,{...guest,id:nextId,inviteStatus:guest.inviteStatus||"not_sent",inviteSentDate:guest.inviteSentDate||null}];audit={action:"guest_added",details:{guestId:nextId,guestName:guest.name}};setNextId(n=>n+1);showToast("Guest added ✓");}
+    else{updated=guests.map(g=>g.id===guest.id?guest:g);audit={action:"guest_updated",details:{guestId:guest.id,guestName:guest.name}};showToast("Saved ✓");}
+    updateGuests(updated,audit);setModalGuest(null);
   };
-  const handleDelete=(id)=>{updateGuests(guests.filter(g=>g.id!==id));setConfirmId(null);showToast("Guest removed");};
+  const handleDelete=(id)=>{const guest=guests.find(g=>g.id===id);updateGuests(guests.filter(g=>g.id!==id),{action:"guest_deleted",details:{guestId:id,guestName:guest?.name}});setConfirmId(null);showToast("Guest removed");};
   const handleSort=(col)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
 
   const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
@@ -978,11 +1137,12 @@ export default function App() {
             <button className={`nav-btn${view==="guests"?" active":""}`} onClick={()=>setView("guests")}>Guest List<span className="nav-count">{guests.length}</span></button>
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
+            {isAdmin&&<button className={`nav-btn${view==="audit"?" active":""}`} onClick={()=>setView("audit")}>Audit<span className="nav-count">{auditLogs.length}</span></button>}
           </nav><button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
         </header>
 
         <main className="main">
-          {view==="dashboard"&&(<><div className="top-bar dashboard-topbar"><div><p className="page-eyebrow">Wedding Guest Manager</p><h2 className="page-title">Dashboard</h2></div><button className="btn btn-primary" onClick={()=>setView("guests")}>Manage guests →</button></div><Dashboard guests={guests} categories={categories}/></>)}
+          {view==="dashboard"&&(<><div className="top-bar dashboard-topbar"><div><p className="page-eyebrow">Wedding Guest Manager</p><h2 className="page-title">Dashboard</h2></div><button className="btn btn-primary" onClick={()=>setView("guests")}>Manage guests →</button></div><Dashboard guests={guests} categories={categories} user={user}/></>)}
 
           {view==="guests"&&(
             <>
@@ -1025,6 +1185,7 @@ export default function App() {
 
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
           {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast}/>}
+          {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>
 
