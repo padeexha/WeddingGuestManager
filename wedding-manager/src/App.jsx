@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { db, auth } from "./firebase";
 import LoginScreen from "./LoginScreen";
@@ -1106,6 +1108,240 @@ export default function App() {
   const handleDelete=(id)=>{const guest=guests.find(g=>g.id===id);updateGuests(guests.filter(g=>g.id!==id),{action:"guest_deleted",details:{guestId:id,guestName:guest?.name}});setConfirmId(null);showToast("Guest removed");};
   const handleSort=(col)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
 
+  const downloadPDF = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const rose = [176, 82, 120];
+    const dark = [61, 24, 41];
+    const muted = [122, 77, 99];
+    const now = new Date().toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
+
+    // ── Cover header ─────────────────────────────────────────────────
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, pageW, 30, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(245, 220, 235);
+    doc.text("Thulani & Isuru — Wedding Guest Report", pageW / 2, 13, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(196, 154, 108);
+    doc.text(`Generated ${now}`, pageW / 2, 21, { align: "center" });
+
+    // ── Summary stats ─────────────────────────────────────────────────
+    const totalInvited    = guests.reduce((a, g) => a + g.count, 0);
+    const totalAttending  = guests.reduce((a, g) => a + getAttending(g), 0);
+    const confirmed       = guests.filter(g => g.rsvp === "confirmed").reduce((a, g) => a + getAttending(g), 0);
+    const pending         = guests.filter(g => g.rsvp === "pending").reduce((a, g) => a + getAttending(g), 0);
+    const declined        = guests.filter(g => g.rsvp === "declined").reduce((a, g) => a + getAttending(g), 0);
+    const invDelivered    = guests.filter(g => g.inviteStatus === "delivered").length;
+    const invSent         = guests.filter(g => g.inviteStatus === "sent").length;
+    const invNotSent      = guests.filter(g => !g.inviteStatus || g.inviteStatus === "not_sent").length;
+    const confirmedPct    = totalAttending > 0 ? Math.round((confirmed / totalAttending) * 100) : 0;
+    const invPct          = guests.length > 0 ? Math.round(((invDelivered + invSent) / guests.length) * 100) : 0;
+
+    const stats = [
+      ["Guest Groups", guests.length],
+      ["Total Invited", totalInvited],
+      ["Total Attending", totalAttending],
+      ["Confirmed", `${confirmed} (${confirmedPct}%)`],
+      ["Pending RSVP", pending],
+      ["Declined", declined],
+      ["Invites Delivered", invDelivered],
+      ["Invites Sent", invSent],
+      ["Not Sent", invNotSent],
+      ["Invite Sent %", `${invPct}%`],
+    ];
+
+    const colW = (pageW - 20) / 5;
+    let sy = 36;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...rose);
+    doc.text("Summary", 14, sy);
+    sy += 5;
+
+    stats.forEach((s, i) => {
+      const col = i % 5;
+      const row = Math.floor(i / 5);
+      const x = 14 + col * colW;
+      const y = sy + row * 22;
+      doc.setFillColor(253, 244, 247);
+      doc.roundedRect(x, y, colW - 4, 18, 2, 2, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...muted);
+      doc.text(String(s[0]).toUpperCase(), x + 4, y + 6);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(...dark);
+      doc.text(String(s[1]), x + 4, y + 14);
+    });
+
+    // ── Category breakdown table ──────────────────────────────────────
+    sy += 50;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...rose);
+    doc.text("Attendance by Category", 14, sy);
+
+    const catRows = categories.map(cat => {
+      const gs = guests.filter(g => g.category === cat.name);
+      const att = gs.reduce((a, g) => a + getAttending(g), 0);
+      const conf = gs.filter(g => g.rsvp === "confirmed").reduce((a, g) => a + getAttending(g), 0);
+      const pend = gs.filter(g => g.rsvp === "pending").reduce((a, g) => a + getAttending(g), 0);
+      const decl = gs.filter(g => g.rsvp === "declined").reduce((a, g) => a + getAttending(g), 0);
+      const del  = gs.filter(g => g.inviteStatus === "delivered").length;
+      const snt  = gs.filter(g => g.inviteStatus === "sent").length;
+      return [cat.name, gs.length, att, conf, pend, decl, del, snt, gs.length - del - snt];
+    });
+
+    autoTable(doc, {
+      startY: sy + 4,
+      head: [["Category", "Groups", "Attending", "Confirmed", "Pending", "Declined", "Delivered", "Sent", "Not Sent"]],
+      body: catRows,
+      theme: "grid",
+      headStyles: { fillColor: dark, textColor: [245, 220, 235], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8, textColor: dark },
+      alternateRowStyles: { fillColor: [253, 244, 247] },
+      columnStyles: { 0: { cellWidth: 50 } },
+      margin: { left: 14, right: 14 },
+    });
+
+    // ── Guest list table (new page) ───────────────────────────────────
+    doc.addPage();
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, pageW, 18, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(245, 220, 235);
+    doc.text("Full Guest List", pageW / 2, 12, { align: "center" });
+
+    const rsvpLabel = { confirmed: "Confirmed", pending: "Pending", declined: "Declined" };
+    const invLabel  = { delivered: "Delivered", sent: "Sent", not_sent: "Not Sent" };
+
+    const guestRows = [...guests]
+      .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name))
+      .map(g => [
+        g.name,
+        g.category.replace(" Invites", ""),
+        g.count || 0,
+        getAttending(g),
+        rsvpLabel[g.rsvp || "pending"],
+        invLabel[g.inviteStatus || "not_sent"],
+        g.inviteSentDate ? fmtDate(g.inviteSentDate) : "—",
+        g.table ? `Table ${g.table}` : "—",
+        g.notes || "—",
+      ]);
+
+    autoTable(doc, {
+      startY: 22,
+      head: [["Name", "Category", "Invited", "Attending", "RSVP", "Invite", "Date Sent", "Table", "Notes"]],
+      body: guestRows,
+      theme: "striped",
+      headStyles: { fillColor: rose, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7.5, textColor: dark },
+      alternateRowStyles: { fillColor: [253, 244, 247] },
+      columnStyles: {
+        0: { cellWidth: 42 },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 16, halign: "center" },
+        3: { cellWidth: 18, halign: "center" },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 24 },
+        7: { cellWidth: 18, halign: "center" },
+        8: { cellWidth: "auto" },
+      },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 4) {
+          const v = data.cell.raw;
+          if (v === "Confirmed") data.cell.styles.textColor = [26, 107, 64];
+          else if (v === "Declined") data.cell.styles.textColor = [122, 24, 48];
+          else data.cell.styles.textColor = [122, 80, 0];
+        }
+        if (data.section === "body" && data.column.index === 5) {
+          const v = data.cell.raw;
+          if (v === "Delivered") data.cell.styles.textColor = [26, 107, 64];
+          else if (v === "Sent") data.cell.styles.textColor = [42, 74, 142];
+        }
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    // ── Invitation status page ────────────────────────────────────────
+    doc.addPage();
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, pageW, 18, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(245, 220, 235);
+    doc.text("Invitation Status", pageW / 2, 12, { align: "center" });
+
+    const invRows = [...guests]
+      .sort((a, b) => {
+        const order = { not_sent: 0, sent: 1, delivered: 2 };
+        const ao = order[a.inviteStatus || "not_sent"];
+        const bo = order[b.inviteStatus || "not_sent"];
+        return ao - bo || a.name.localeCompare(b.name);
+      })
+      .map(g => [
+        g.name,
+        g.category.replace(" Invites", ""),
+        invLabel[g.inviteStatus || "not_sent"],
+        g.inviteSentDate ? fmtDate(g.inviteSentDate) : "—",
+        rsvpLabel[g.rsvp || "pending"],
+        getAttending(g),
+      ]);
+
+    autoTable(doc, {
+      startY: 22,
+      head: [["Name", "Category", "Invite Status", "Date Sent", "RSVP", "Attending"]],
+      body: invRows,
+      theme: "striped",
+      headStyles: { fillColor: [42, 74, 142], textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8, textColor: dark },
+      alternateRowStyles: { fillColor: [234, 240, 251] },
+      columnStyles: {
+        0: { cellWidth: 55 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 28 },
+        5: { cellWidth: 22, halign: "center" },
+      },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 2) {
+          const v = data.cell.raw;
+          if (v === "Delivered") data.cell.styles.textColor = [26, 107, 64];
+          else if (v === "Sent") data.cell.styles.textColor = [42, 74, 142];
+          else data.cell.styles.textColor = [142, 61, 95];
+        }
+        if (data.section === "body" && data.column.index === 4) {
+          const v = data.cell.raw;
+          if (v === "Confirmed") data.cell.styles.textColor = [26, 107, 64];
+          else if (v === "Declined") data.cell.styles.textColor = [122, 24, 48];
+          else data.cell.styles.textColor = [122, 80, 0];
+        }
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    // ── Footer on every page ──────────────────────────────────────────
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...muted);
+      doc.text(`Page ${i} of ${pageCount}`, pageW - 14, doc.internal.pageSize.getHeight() - 6, { align: "right" });
+      doc.text("Thulani & Isuru — Wedding Guest Manager", 14, doc.internal.pageSize.getHeight() - 6);
+    }
+
+    doc.save(`wedding-guest-report-${new Date().toISOString().split("T")[0]}.pdf`);
+    showToast("PDF downloaded ✓");
+  };
+
   const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
   const filtered=guests.filter(g=>{
     if(search&&!g.name.toLowerCase().includes(search.toLowerCase())&&!(g.notes||"").toLowerCase().includes(search.toLowerCase())) return false;
@@ -1138,7 +1374,11 @@ export default function App() {
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
             {isAdmin&&<button className={`nav-btn${view==="audit"?" active":""}`} onClick={()=>setView("audit")}>Audit<span className="nav-count">{auditLogs.length}</span></button>}
-          </nav><button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
+          </nav>
+          <div style={{display:"flex",gap:8,flexShrink:0}}>
+            <button className="btn btn-ghost logout-btn" style={{borderColor:"rgba(196,154,108,.4)",color:"#C49A6C"}} onClick={downloadPDF} title="Download full guest report as PDF">⬇ PDF</button>
+            <button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
+          </div>
         </header>
 
         <main className="main">
