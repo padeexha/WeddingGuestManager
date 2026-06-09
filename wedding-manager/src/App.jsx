@@ -976,6 +976,7 @@ export default function App() {
   const [user,setUser]=useState(null);
   const [auditLogs,setAuditLogs]=useState([]);
   const [auditLoading,setAuditLoading]=useState(false);
+  const [pdfMenuOpen,setPdfMenuOpen]=useState(false);
 
   const [splash, setSplash] = useState(true);
   const isAdmin = isAdminUser(user);
@@ -1342,6 +1343,155 @@ export default function App() {
     showToast("PDF downloaded ✓");
   };
 
+  const downloadCategoryPDF = (categoryName) => {
+    const catGuests = guests.filter(g => g.category === categoryName);
+    if (!catGuests.length) { showToast("No guests in this category"); return; }
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const rose = [176, 82, 120];
+    const dark = [61, 24, 41];
+    const muted = [122, 77, 99];
+    const catObj = categories.find(c => c.name === categoryName);
+    const now = new Date().toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
+
+    // Header
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, pageW, 30, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(245, 220, 235);
+    doc.text(`Thulani & Isuru — ${categoryName}`, pageW / 2, 13, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(196, 154, 108);
+    doc.text(`Generated ${now}`, pageW / 2, 21, { align: "center" });
+
+    // Category stats
+    const totalInvited = catGuests.reduce((a, g) => a + g.count, 0);
+    const totalAttending = catGuests.reduce((a, g) => a + getAttending(g), 0);
+    const confirmed = catGuests.filter(g => g.rsvp === "confirmed").reduce((a, g) => a + getAttending(g), 0);
+    const pending = catGuests.filter(g => g.rsvp === "pending").reduce((a, g) => a + getAttending(g), 0);
+    const declined = catGuests.filter(g => g.rsvp === "declined").reduce((a, g) => a + getAttending(g), 0);
+    const invDelivered = catGuests.filter(g => g.inviteStatus === "delivered").length;
+    const invSent = catGuests.filter(g => g.inviteStatus === "sent").length;
+    const invNotSent = catGuests.filter(g => !g.inviteStatus || g.inviteStatus === "not_sent").length;
+    const confirmedPct = totalAttending > 0 ? Math.round((confirmed / totalAttending) * 100) : 0;
+    const invPct = catGuests.length > 0 ? Math.round(((invDelivered + invSent) / catGuests.length) * 100) : 0;
+
+    const stats = [
+      ["Guest Groups", catGuests.length],
+      ["Total Invited", totalInvited],
+      ["Total Attending", totalAttending],
+      ["Confirmed", `${confirmed} (${confirmedPct}%)`],
+      ["Pending RSVP", pending],
+      ["Declined", declined],
+      ["Invites Delivered", invDelivered],
+      ["Invites Sent", invSent],
+      ["Not Sent", invNotSent],
+      ["Invite Sent %", `${invPct}%`],
+    ];
+
+    const colW = (pageW - 20) / 5;
+    let sy = 36;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...rose);
+    doc.text("Summary", 14, sy);
+    sy += 5;
+
+    stats.forEach((s, i) => {
+      const col = i % 5;
+      const row = Math.floor(i / 5);
+      const x = 14 + col * colW;
+      const y = sy + row * 22;
+      doc.setFillColor(253, 244, 247);
+      doc.roundedRect(x, y, colW - 4, 18, 2, 2, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...muted);
+      doc.text(String(s[0]).toUpperCase(), x + 4, y + 6);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(...dark);
+      doc.text(String(s[1]), x + 4, y + 14);
+    });
+
+    // Guest list (new page)
+    doc.addPage();
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, pageW, 18, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(245, 220, 235);
+    doc.text(`Guest List — ${categoryName}`, pageW / 2, 12, { align: "center" });
+
+    const rsvpLabel = { confirmed: "Confirmed", pending: "Pending", declined: "Declined" };
+    const invLabel  = { delivered: "Delivered", sent: "Sent", not_sent: "Not Sent" };
+
+    const guestRows = [...catGuests]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(g => [
+        g.name,
+        g.count || 0,
+        getAttending(g),
+        rsvpLabel[g.rsvp || "pending"],
+        invLabel[g.inviteStatus || "not_sent"],
+        g.inviteSentDate ? fmtDate(g.inviteSentDate) : "—",
+        g.table ? `Table ${g.table}` : "—",
+        g.notes || "—",
+      ]);
+
+    autoTable(doc, {
+      startY: 22,
+      head: [["Name", "Invited", "Attending", "RSVP", "Invite", "Date Sent", "Table", "Notes"]],
+      body: guestRows,
+      theme: "striped",
+      headStyles: { fillColor: rose, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7.5, textColor: dark },
+      alternateRowStyles: { fillColor: [253, 244, 247] },
+      columnStyles: {
+        0: { cellWidth: 55 },
+        1: { cellWidth: 18, halign: "center" },
+        2: { cellWidth: 20, halign: "center" },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 24 },
+        5: { cellWidth: 26 },
+        6: { cellWidth: 20, halign: "center" },
+        7: { cellWidth: "auto" },
+      },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 3) {
+          const v = data.cell.raw;
+          if (v === "Confirmed") data.cell.styles.textColor = [26, 107, 64];
+          else if (v === "Declined") data.cell.styles.textColor = [122, 24, 48];
+          else data.cell.styles.textColor = [122, 80, 0];
+        }
+        if (data.section === "body" && data.column.index === 4) {
+          const v = data.cell.raw;
+          if (v === "Delivered") data.cell.styles.textColor = [26, 107, 64];
+          else if (v === "Sent") data.cell.styles.textColor = [42, 74, 142];
+        }
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    // Footer on every page
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...muted);
+      doc.text(`Page ${i} of ${pageCount}`, pageW - 14, doc.internal.pageSize.getHeight() - 6, { align: "right" });
+      doc.text("Thulani & Isuru — Wedding Guest Manager", 14, doc.internal.pageSize.getHeight() - 6);
+    }
+
+    const slug = categoryName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    doc.save(`guest-report-${slug}-${new Date().toISOString().split("T")[0]}.pdf`);
+    showToast(`PDF for "${categoryName}" downloaded ✓`);
+  };
+
   const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
   const filtered=guests.filter(g=>{
     if(search&&!g.name.toLowerCase().includes(search.toLowerCase())&&!(g.notes||"").toLowerCase().includes(search.toLowerCase())) return false;
@@ -1376,7 +1526,42 @@ export default function App() {
             {isAdmin&&<button className={`nav-btn${view==="audit"?" active":""}`} onClick={()=>setView("audit")}>Audit<span className="nav-count">{auditLogs.length}</span></button>}
           </nav>
           <div style={{display:"flex",gap:8,flexShrink:0}}>
-            <button className="btn btn-ghost logout-btn" style={{borderColor:"rgba(196,154,108,.4)",color:"#C49A6C"}} onClick={downloadPDF} title="Download full guest report as PDF">⬇ PDF</button>
+            <div style={{position:"relative"}}>
+              <button
+                className="btn btn-ghost logout-btn"
+                style={{borderColor:"rgba(196,154,108,.4)",color:"#C49A6C",display:"flex",alignItems:"center",gap:4}}
+                onClick={()=>setPdfMenuOpen(o=>!o)}
+                title="Download PDF report"
+              >⬇ PDF <span style={{fontSize:9,opacity:.7}}>{pdfMenuOpen?"▲":"▼"}</span></button>
+              {pdfMenuOpen&&(
+                <div
+                  style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"#fff",border:"1px solid #EDD8E2",borderRadius:8,boxShadow:"0 4px 16px rgba(61,24,41,.15)",minWidth:190,zIndex:999}}
+                  onMouseLeave={()=>setPdfMenuOpen(false)}
+                >
+                  <div style={{padding:"6px 0"}}>
+                    <button
+                      style={{display:"block",width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"#3D1829",fontSize:13,cursor:"pointer",fontWeight:600}}
+                      onMouseEnter={e=>e.currentTarget.style.background="#FDF4F7"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}
+                      onClick={()=>{setPdfMenuOpen(false);downloadPDF();}}
+                    >Full Report</button>
+                    <div style={{height:1,background:"#EDD8E2",margin:"4px 0"}}/>
+                    {categories.map(cat=>(
+                      <button
+                        key={cat.name}
+                        style={{display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"#3D1829",fontSize:13,cursor:"pointer"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="#FDF4F7"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}
+                        onClick={()=>{setPdfMenuOpen(false);downloadCategoryPDF(cat.name);}}
+                      >
+                        <span style={{width:10,height:10,borderRadius:"50%",background:cat.color,flexShrink:0,display:"inline-block"}}/>
+                        {cat.name.replace(" Invites","")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
           </div>
         </header>
