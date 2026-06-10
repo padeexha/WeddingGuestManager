@@ -1703,8 +1703,7 @@ export default function App() {
                 </div>
               )}
             </div>
-            {isAdmin&&<button className="btn btn-ghost logout-btn" style={{borderColor:"rgba(255,80,80,.4)",color:"#ff6060"}} onClick={handleRestoreData} title="Restore all guest data from PDF export">↺ Restore</button>}
-            <button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
+<button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
           </div>
         </header>
 
