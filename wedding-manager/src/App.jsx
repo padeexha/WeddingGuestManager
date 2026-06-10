@@ -664,20 +664,9 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
 
   const SH=({col})=>(<span style={{color:sortCol===col?T.primary:T.borderLight,marginLeft:4,fontSize:10}}>{sortCol===col?(sortDir==="asc"?"▲":"▼"):"⇅"}</span>);
 
-  const pctD=total>0?Math.round((delivered/total)*100):0;
-  const pctS=total>0?Math.round((sent/total)*100):0;
-  const pctN=100-pctD-pctS;
-
   return(
     <div>
-      <div className="top-bar">
-        <h2 className="page-title">Invitations</h2>
-        {selected.size>0&&<div style={{display:"flex",gap:8}}>
-          <button className="btn btn-ghost btn-sm" onClick={()=>updateStatus([...selected],"not_sent")}>Mark Not Sent</button>
-          <button className="btn btn-ghost btn-sm" style={{borderColor:"#4A7ADE",color:"#2A4A8E",background:"#EAF0FB"}} onClick={()=>updateStatus([...selected],"sent")}>Mark Sent</button>
-          <button className="btn btn-primary btn-sm" onClick={()=>updateStatus([...selected],"delivered")}>Mark Delivered</button>
-        </div>}
-      </div>
+      <div className="top-bar"><h2 className="page-title">Invitations</h2></div>
 
       <div className="inv-stats">
         {[
@@ -688,23 +677,9 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
           <div key={s.label} className="stat-card" style={{"--ac":s.ac,cursor:"pointer"}} onClick={()=>setFilterStatus(filterStatus===s.f?"all":s.f)}>
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{color:s.vc}}>{s.value}</div>
-            <div className="stat-sub">{total>0?Math.round(s.value/total*100):0}% of {total} groups {filterStatus===s.f?"· filtered":""}</div>
+            <div className="stat-sub">{total>0?Math.round(s.value/total*100):0}% of {total} groups{filterStatus===s.f?" · filtered":""}</div>
           </div>
         ))}
-      </div>
-
-      <div className="inv-progress-card">
-        <div className="inv-progress-title">Overall progress</div>
-        <div className="progress-bar-wrap">
-          <div className="progress-seg" style={{width:`${pctD}%`,background:INVITE_STATUS.delivered.dot}}/>
-          <div className="progress-seg" style={{width:`${pctS}%`,background:INVITE_STATUS.sent.dot}}/>
-          <div className="progress-seg" style={{width:`${pctN}%`,background:T.borderLight}}/>
-        </div>
-        <div className="progress-legend">
-          {[{label:"Delivered",pct:pctD,color:INVITE_STATUS.delivered.dot},{label:"Sent",pct:pctS,color:INVITE_STATUS.sent.dot},{label:"Not Sent",pct:pctN,color:T.textMuted}].map(l=>(
-            <div key={l.label} className="progress-legend-item"><span style={{width:10,height:10,borderRadius:"50%",background:l.color,display:"inline-block"}}/>{l.label} <b style={{marginLeft:3}}>{l.pct}%</b></div>
-          ))}
-        </div>
       </div>
 
       <div className="toolbar">
@@ -738,12 +713,11 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
           <table>
             <thead><tr>
               <th className="no-sort" style={{width:44}}><input type="checkbox" className="cb" checked={selected.size>0&&selected.size===filtered.length} onChange={toggleAll}/></th>
-              <th style={{width:"24%"}} onClick={()=>handleSort("name")}>Name <SH col="name"/></th>
-              <th style={{width:"17%"}} onClick={()=>handleSort("category")}>Category <SH col="category"/></th>
-              <th style={{width:"15%"}} onClick={()=>handleSort("status")}>Invite Status <SH col="status"/></th>
-              <th style={{width:"15%"}} onClick={()=>handleSort("date")}>Date Sent <SH col="date"/></th>
-              <th style={{width:"13%"}} className="no-sort">RSVP</th>
-              <th style={{width:"12%",textAlign:"right"}} className="no-sort">Quick Set</th>
+              <th style={{width:"26%"}} onClick={()=>handleSort("name")}>Name <SH col="name"/></th>
+              <th style={{width:"18%"}} onClick={()=>handleSort("category")}>Category <SH col="category"/></th>
+              <th style={{width:"16%"}} onClick={()=>handleSort("status")}>Invite Status <SH col="status"/></th>
+              <th style={{width:"16%"}} onClick={()=>handleSort("date")}>Date Sent <SH col="date"/></th>
+              <th style={{width:"14%"}} className="no-sort">RSVP</th>
             </tr></thead>
             <tbody>
               {filtered.map(g=>{
@@ -756,9 +730,6 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
                     <td><InvBadge status={status} onChange={s=>handleSingle(g.id,s)}/></td>
                     <td style={{fontSize:12,color:T.textMuted}}>{g.inviteSentDate?fmtDate(g.inviteSentDate):<span style={{color:T.borderLight}}>—</span>}</td>
                     <td><span className="rsvp-badge" style={{background:RSVP_CONFIG[g.rsvp||"pending"].bg,color:RSVP_CONFIG[g.rsvp||"pending"].color,cursor:"default"}}><span className="rsvp-dot" style={{background:RSVP_CONFIG[g.rsvp||"pending"].dot}}/>{RSVP_CONFIG[g.rsvp||"pending"].label}</span></td>
-                    <td style={{textAlign:"right"}}>
-                      {status!=="delivered"?<button className="btn btn-primary btn-sm" onClick={()=>handleSingle(g.id,status==="not_sent"?"sent":"delivered")}>{status==="not_sent"?"Mark Sent":"Mark Delivered"}</button>:<span style={{fontSize:20}}>✅</span>}
-                    </td>
                   </tr>
                 );
               })}
@@ -1239,6 +1210,11 @@ export default function App() {
   const handleRsvpChange=(id,rsvp)=>{
     const guest=guests.find(g=>g.id===id);
     updateGuests(guests.map(g=>g.id===id?{...g,rsvp}:g),{action:"rsvp_changed",details:{guestId:id,guestName:guest?.name,to:rsvp}});
+  };
+  const handleInviteChange=(id,status)=>{
+    const dateVal=(status==="sent"||status==="delivered")?today():null;
+    const guest=guests.find(g=>g.id===id);
+    updateGuests(guests.map(g=>g.id===id?{...g,inviteStatus:status,inviteSentDate:dateVal}:g),{action:"invite_status_changed",details:{guestId:id,guestName:guest?.name,status}});
   };
   const handleSave=(guest)=>{
     let updated;
@@ -1724,13 +1700,14 @@ export default function App() {
               <div className="table-wrap">
                 {filtered.length===0?<div className="empty"><div style={{fontSize:36,marginBottom:12}}>🪷</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:T.textMuted}}>No guests found</div></div>:(
                   <table><thead><tr>
-                    <th style={{width:"22%"}} onClick={()=>handleSort("name")}>Name <SH col="name"/></th>
-                    <th style={{width:"16%"}} onClick={()=>handleSort("category")}>Category <SH col="category"/></th>
-                    <th style={{width:"11%"}} onClick={()=>handleSort("attending")}>Attending <SH col="attending"/></th>
-                    <th style={{width:"14%"}}>RSVP</th>
-                    <th style={{width:"8%",textAlign:"center"}} onClick={()=>handleSort("table")}>Table <SH col="table"/></th>
-                    <th style={{width:"17%"}}>Notes</th>
-                    <th style={{width:"12%",textAlign:"right"}}>Actions</th>
+                    <th style={{width:"20%"}} onClick={()=>handleSort("name")}>Name <SH col="name"/></th>
+                    <th style={{width:"14%"}} onClick={()=>handleSort("category")}>Category <SH col="category"/></th>
+                    <th style={{width:"9%"}} onClick={()=>handleSort("attending")}>Attending <SH col="attending"/></th>
+                    <th style={{width:"12%"}}>RSVP</th>
+                    <th style={{width:"13%"}}>Invite</th>
+                    <th style={{width:"7%",textAlign:"center"}} onClick={()=>handleSort("table")}>Table <SH col="table"/></th>
+                    <th style={{width:"15%"}}>Notes</th>
+                    <th style={{width:"10%",textAlign:"right"}}>Actions</th>
                   </tr></thead><tbody>
                     {filtered.map(g=>(
                       <tr key={g.id}>
@@ -1738,6 +1715,7 @@ export default function App() {
                         <td><CatBadge category={g.category} categories={categories}/></td>
                         <td><CountDisplay g={g}/></td>
                         <td><RsvpBadge rsvp={g.rsvp} onChange={rsvp=>handleRsvpChange(g.id,rsvp)}/></td>
+                        <td><InvBadge status={g.inviteStatus||"not_sent"} onChange={s=>handleInviteChange(g.id,s)}/></td>
                         <td style={{textAlign:"center"}}>{g.table?<span className="table-tag">T{g.table}</span>:<span style={{color:T.borderLight}}>—</span>}</td>
                         <td style={{fontSize:12,color:T.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:0}} title={g.notes||""}>{g.notes||<span style={{color:T.borderLight}}>—</span>}</td>
                         <td style={{textAlign:"right"}}><button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit">✏️</button><button className="action-btn del" onClick={()=>setConfirmId(g.id)} title="Remove">🗑</button></td>
