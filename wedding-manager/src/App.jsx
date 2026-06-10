@@ -52,6 +52,135 @@ const DEFAULT_CATEGORIES = [
   { name:"Thulani's Invites",  color:"#7AAA8F" },
 ];
 
+// Canonical categories & guests restored from PDF exports (9 Jun 2026)
+const RESTORED_CATEGORIES = [
+  { name:"Neighbours",           color:"#6A8FAA" },
+  { name:"Lihini's Invites",     color:"#AA7A6A" },
+  { name:"Thulani's Invites",    color:"#7AAA8F" },
+  { name:"Sanjeewa's Relations", color:"#A0547A" },
+  { name:"Sanjeewa's Friends",   color:"#7A6BAA" },
+  { name:"Ushani's Relations",   color:"#B07A54" },
+  { name:"Ushani's Friends",     color:"#54B07A" },
+  { name:"Audio & Photography",  color:"#B05490" },
+];
+
+const MKG = (id,name,cat,count,inviteStatus="not_sent",inviteSentDate=null,table=null,notes="") =>
+  ({id,name,category:cat,count,attendingCount:null,rsvp:"pending",table,notes,inviteStatus,inviteSentDate});
+
+const RESTORED_GUESTS = [
+  // Neighbours
+  MKG(1,"Amitha","Neighbours",2),
+  MKG(2,"Menaka","Neighbours",2),
+  MKG(3,"Nimal","Neighbours",2),
+  MKG(4,"Poojitha","Neighbours",2),
+  MKG(5,"Renu","Neighbours",2),
+  MKG(6,"Sudu Nangi","Neighbours",2),
+  // Lihini's Invites
+  MKG(7,"Indusara","Lihini's Invites",1),
+  MKG(8,"Janani","Lihini's Invites",1),
+  MKG(9,"Nethi","Lihini's Invites",1),
+  MKG(10,"Nisini","Lihini's Invites",1),
+  MKG(11,"Oneli","Lihini's Invites",1),
+  MKG(12,"Padeesha","Lihini's Invites",3),
+  MKG(13,"Rehan","Lihini's Invites",2),
+  MKG(14,"Sewmini","Lihini's Invites",1),
+  MKG(15,"Thidasi","Lihini's Invites",1),
+  // Thulani's Invites
+  MKG(16,"Abhishek","Thulani's Invites",1,"not_sent",null,5),
+  MKG(17,"Adithya Karaliadde","Thulani's Invites",1,"not_sent",null,4),
+  MKG(18,"Andrea Wijewansha","Thulani's Invites",1,"not_sent",null,4),
+  MKG(19,"Anjana Alawatta","Thulani's Invites",1,"not_sent",null,4),
+  MKG(20,"Aswida Benedict","Thulani's Invites",1,"not_sent",null,5),
+  MKG(21,"Bavanishna","Thulani's Invites",1,"not_sent",null,4),
+  MKG(22,"Chandana Liyanapatabendy","Thulani's Invites",2,"not_sent",null,6),
+  MKG(23,"Charuka","Thulani's Invites",1,"not_sent",null,5),
+  MKG(24,"Hashini","Thulani's Invites",2,"not_sent",null,5),
+  MKG(25,"Imara","Thulani's Invites",1,"not_sent",null,6),
+  MKG(26,"Ishini Mutihetupliya","Thulani's Invites",1,"not_sent",null,4),
+  MKG(27,"Jagath Sumathipala","Thulani's Invites",2),
+  MKG(28,"Keerthi Pieris","Thulani's Invites",2,"not_sent",null,6),
+  MKG(29,"Khan","Thulani's Invites",1),
+  MKG(30,"Lakshi Mahindasinghe","Thulani's Invites",1,"not_sent",null,5),
+  MKG(31,"Nipun","Thulani's Invites",1,"not_sent",null,5),
+  MKG(32,"Oshadi","Thulani's Invites",1),
+  MKG(33,"Putte","Thulani's Invites",1),
+  MKG(34,"Ruvin","Thulani's Invites",1,"not_sent",null,null,"w/ mahawedage"),
+  MKG(35,"Saliya Pieris","Thulani's Invites",1,"not_sent",null,6),
+  MKG(36,"Sandini Paramulage","Thulani's Invites",1,"not_sent",null,4),
+  MKG(37,"Shanaka","Thulani's Invites",1,"not_sent",null,5),
+  MKG(38,"Shanal & Kiran","Thulani's Invites",2,"not_sent",null,5),
+  MKG(39,"Sithmi Muthumala","Thulani's Invites",1,"not_sent",null,4),
+  MKG(40,"Yashoda Desilva","Thulani's Invites",1,"not_sent",null,4),
+  // Sanjeewa's Relations
+  MKG(41,"Anusha & Family","Sanjeewa's Relations",6,"sent","2026-06-09"),
+  MKG(42,"Charlie","Sanjeewa's Relations",2),
+  MKG(43,"Deepika Perera","Sanjeewa's Relations",2,"sent","2026-06-09"),
+  MKG(44,"Dharamarathna","Sanjeewa's Relations",2,"sent","2026-06-09"),
+  MKG(45,"Dr Mahawedage Family","Sanjeewa's Relations",5,"sent","2026-06-09"),
+  MKG(46,"Duminda","Sanjeewa's Relations",2,"sent","2026-06-09",null,"Panadura"),
+  MKG(47,"Inamaluwa & Family","Sanjeewa's Relations",4,"sent","2026-06-09"),
+  MKG(48,"Indrani Karunarathna","Sanjeewa's Relations",1,"sent","2026-06-09"),
+  MKG(49,"Kavinda","Sanjeewa's Relations",5,"delivered","2026-06-09",null,"Amma Included"),
+  MKG(50,"Malani NIshshnaka","Sanjeewa's Relations",1,"sent","2026-06-09"),
+  MKG(51,"Maneesha","Sanjeewa's Relations",1,"delivered","2026-06-09"),
+  MKG(52,"Mewan","Sanjeewa's Relations",1,"sent","2026-06-09"),
+  MKG(53,"Mrs. Weerakon","Sanjeewa's Relations",1,"sent","2026-06-09"),
+  MKG(54,"Prabath Amarathunga","Sanjeewa's Relations",2,"sent","2026-06-09"),
+  MKG(55,"Prakrama Dharmarathna","Sanjeewa's Relations",2,"sent","2026-06-09"),
+  MKG(56,"Rani","Sanjeewa's Relations",1),
+  MKG(57,"Rohini Karunarathnna","Sanjeewa's Relations",1,"sent","2026-06-09"),
+  MKG(58,"Sanjaya Amarathunga","Sanjeewa's Relations",1,"sent","2026-06-09"),
+  MKG(59,"Sanjeewani & Pradeep","Sanjeewa's Relations",2,"sent","2026-06-09"),
+  // Sanjeewa's Friends
+  MKG(60,"Ananda Senerath","Sanjeewa's Friends",2,"sent","2026-06-09"),
+  MKG(61,"Chaminda Liyanage","Sanjeewa's Friends",2,"sent","2026-06-09",null,"Evite"),
+  MKG(62,"Chandana Bopegoda","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(63,"Chinthaka Wijesekara","Sanjeewa's Friends",2,"sent","2026-05-22"),
+  MKG(64,"Damika Cabral","Sanjeewa's Friends",1,"sent","2026-06-09"),
+  MKG(65,"Dr. Nirukshan Pradeep","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(66,"Gyruka Perusinghe","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(67,"Harshana Mayakaduwa","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evites"),
+  MKG(68,"Indika Bandara","Sanjeewa's Friends",2,"sent","2026-06-09",null,"Evites"),
+  MKG(69,"Indika Dayarathna","Sanjeewa's Friends",3,"sent","2026-06-09",null,"Evite"),
+  MKG(70,"Jagath Liyanagama","Sanjeewa's Friends",1,"sent","2026-06-09",null,"Evites"),
+  MKG(71,"Jagath Sumathipala","Sanjeewa's Friends",2,"not_sent",null,null,"VIP"),
+  MKG(72,"L P Shantha","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(73,"Lal Hewagama","Sanjeewa's Friends",2,"sent","2026-06-09"),
+  MKG(74,"Mahee Muthukumarana","Sanjeewa's Friends",1,"sent","2026-06-09",null,"Evite"),
+  MKG(75,"Mahinda Pushpakumara","Sanjeewa's Friends",1,"sent","2026-06-09",null,"Evite"),
+  MKG(76,"Muditha Lansakara","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(77,"Nalinda Mahawithana","Sanjeewa's Friends",4,"sent","2026-05-22",null,"Evite"),
+  MKG(78,"Nishantha de Silva","Sanjeewa's Friends",1,"sent","2026-06-09",null,"Evites"),
+  MKG(79,"Poshitha Delpola","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(80,"Prabath Maheepala","Sanjeewa's Friends",1,"not_sent",null,null,"Evite"),
+  MKG(81,"Ranjan Gopallawa","Sanjeewa's Friends",2,"sent","2026-06-09"),
+  MKG(82,"Salinda Samarakoon","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(83,"Samantha Wijesekara","Sanjeewa's Friends",2,"sent","2026-05-22",null,"Evite"),
+  MKG(84,"Sanjeewa Herath","Sanjeewa's Friends",2),
+  MKG(85,"Shantha Sirisooriya","Sanjeewa's Friends",1,"not_sent",null,null,"Evite"),
+  // Ushani's Friends
+  MKG(86,"Dr. Chandani","Ushani's Friends",1),
+  MKG(87,"Dr.Dilukshan","Ushani's Friends",1),
+  MKG(88,"Kamini","Ushani's Friends",1),
+  MKG(89,"Manjula Amarasinghe","Ushani's Friends",1),
+  MKG(90,"Mr & Mrs Damith","Ushani's Friends",2),
+  // Ushani's Relations
+  MKG(91,"Asoka Katugaha","Ushani's Relations",1),
+  MKG(92,"C N Wikramasinghe","Ushani's Relations",2,"not_sent",null,null,"Evite"),
+  MKG(93,"Disna Manori","Ushani's Relations",2),
+  MKG(94,"Gayan Ranasinghe","Ushani's Relations",2),
+  MKG(95,"Hasa H U Wikramasinghe","Ushani's Relations",2,"not_sent",null,null,"Evite"),
+  MKG(96,"Mr & Mrs Katugaha","Ushani's Relations",2),
+  MKG(97,"Mr & Mrs Samarasinghe","Ushani's Relations",2,"not_sent",null,null,"Bappa"),
+  MKG(98,"Nimal Ranasinghe","Ushani's Relations",2),
+  MKG(99,"Nimali Adhikari","Ushani's Relations",4),
+  MKG(100,"Nuwan Samarasinghe","Ushani's Relations",4),
+  MKG(101,"Rukmani","Ushani's Relations",1),
+  // Audio & Photography
+  MKG(102,"Photography","Audio & Photography",2),
+  MKG(103,"Watalappam","Audio & Photography",11),
+];
+
 const PALETTE = [
   "#A0547A","#7A6BAA","#6A8FAA","#AA7A6A","#7AAA8F",
   "#B07A54","#547AB0","#B05490","#54B07A","#AA9054",
@@ -1066,13 +1195,25 @@ export default function App() {
   },[isAdmin]);
 
   const saveToCloud = async (updatedGuests, updatedCategories) => {
-    await setDoc(
-      doc(db, "wedding", "guests"),
-      {
-        guests: updatedGuests,
-        categories: updatedCategories
-      }
-    );
+    try {
+      await setDoc(
+        doc(db, "wedding", "guests"),
+        { guests: updatedGuests, categories: updatedCategories }
+      );
+    } catch (err) {
+      showToast("⚠ Save failed — check connection");
+      throw err;
+    }
+  };
+
+  const handleRestoreData = async () => {
+    if (!window.confirm("This will REPLACE all current guest data with the PDF-restored data (103 guests, 8 categories). Continue?")) return;
+    try {
+      await setDoc(doc(db, "wedding", "guests"), { guests: RESTORED_GUESTS, categories: RESTORED_CATEGORIES });
+      showToast("Data restored from PDF ✓");
+    } catch (err) {
+      showToast("⚠ Restore failed — check connection");
+    }
   };
 
   const logAudit = useCallback((action, details={})=>logAuditEvent(user, action, details),[user]);
@@ -1102,9 +1243,9 @@ export default function App() {
   const handleSave=(guest)=>{
     let updated;
     let audit;
-    if(!guest.id){updated=[...guests,{...guest,id:nextId,inviteStatus:guest.inviteStatus||"not_sent",inviteSentDate:guest.inviteSentDate||null}];audit={action:"guest_added",details:{guestId:nextId,guestName:guest.name}};setNextId(n=>n+1);showToast("Guest added ✓");}
-    else{updated=guests.map(g=>g.id===guest.id?guest:g);audit={action:"guest_updated",details:{guestId:guest.id,guestName:guest.name}};showToast("Saved ✓");}
-    updateGuests(updated,audit);setModalGuest(null);
+    if(!guest.id){updated=[...guests,{...guest,id:nextId,inviteStatus:guest.inviteStatus||"not_sent",inviteSentDate:guest.inviteSentDate||null}];audit={action:"guest_added",details:{guestId:nextId,guestName:guest.name}};setNextId(n=>n+1);}
+    else{updated=guests.map(g=>g.id===guest.id?guest:g);audit={action:"guest_updated",details:{guestId:guest.id,guestName:guest.name}};}
+    updateGuests(updated,audit).then(()=>showToast(guest.id?"Saved ✓":"Guest added ✓")).catch(()=>{});setModalGuest(null);
   };
   const handleDelete=(id)=>{const guest=guests.find(g=>g.id===id);updateGuests(guests.filter(g=>g.id!==id),{action:"guest_deleted",details:{guestId:id,guestName:guest?.name}});setConfirmId(null);showToast("Guest removed");};
   const handleSort=(col)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
@@ -1562,6 +1703,7 @@ export default function App() {
                 </div>
               )}
             </div>
+            {isAdmin&&<button className="btn btn-ghost logout-btn" style={{borderColor:"rgba(255,80,80,.4)",color:"#ff6060"}} onClick={handleRestoreData} title="Restore all guest data from PDF export">↺ Restore</button>}
             <button className="btn btn-ghost logout-btn" onClick={()=>signOut(auth)}>Logout</button>
           </div>
         </header>
