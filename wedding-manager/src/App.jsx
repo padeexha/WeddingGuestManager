@@ -775,7 +775,7 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
 
 // ── Category Manager ──────────────────────────────────────────────────────────
 
-function CategoryManager({ categories, setCategories, guests, showToast }) {
+function CategoryManager({ categories, setCategories, guests, showToast, downloadCategoriesBreakdownPDF }) {
   const [newName,setNewName]=useState("");
   const [newColor,setNewColor]=useState(PALETTE[5]);
   const [expandedCats, setExpandedCats] = useState({});
@@ -791,7 +791,14 @@ function CategoryManager({ categories, setCategories, guests, showToast }) {
 
   return(
     <div className="cat-manager">
-      <div className="top-bar"><h2 className="page-title">Categories</h2></div>
+      <div className="top-bar">
+        <h2 className="page-title">Categories</h2>
+        <button
+          className="btn btn-ghost logout-btn"
+          style={{borderColor:"rgba(196,154,108,.4)",color:"#C49A6C",display:"flex",alignItems:"center",gap:4}}
+          onClick={downloadCategoriesBreakdownPDF}
+        >⬇ Export PDF</button>
+      </div>
       <p className="cat-manager-hint">Click the colour swatch to change it · Click the name to rename · Categories with guests can't be deleted.</p>
       <div className="cat-manager-list">
         {categories.map((cat,idx)=>{
@@ -1719,6 +1726,185 @@ export default function App() {
     showToast(`PDF for "${categoryName}" downloaded ✓`);
   };
 
+  const downloadCategoriesBreakdownPDF = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const rose = [176, 82, 120];
+    const dark = [61, 24, 41];
+    const muted = [122, 77, 99];
+    const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+    const hexToRgb = (hex) => {
+      const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+      const fullHex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
+      return result ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+      ] : [176, 82, 120];
+    };
+
+    let firstPage = true;
+
+    categories.forEach((cat) => {
+      const catGuests = guests.filter(g => g.category === cat.name);
+      
+      if (!firstPage) {
+        doc.addPage();
+      }
+      firstPage = false;
+
+      // Header block with the category's theme color
+      const catColor = hexToRgb(cat.color || "#A0547A");
+      doc.setFillColor(...catColor);
+      doc.rect(0, 0, pageW, 25, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`Category: ${cat.name}`, pageW / 2, 11, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(240, 240, 240);
+      doc.text(`Generated ${now} • Wedding Guest Manager`, pageW / 2, 18, { align: "center" });
+
+      // Stats calculations
+      const totalInvited = catGuests.reduce((a, g) => a + g.count, 0);
+      const totalAttending = catGuests.reduce((a, g) => a + getAttending(g), 0);
+      const confirmed = catGuests.filter(g => g.rsvp === "confirmed").reduce((a, g) => a + getAttending(g), 0);
+      const pending = catGuests.filter(g => g.rsvp === "pending").reduce((a, g) => a + getAttending(g), 0);
+      const declined = catGuests.filter(g => g.rsvp === "declined").reduce((a, g) => a + getAttending(g), 0);
+      const invDelivered = catGuests.filter(g => g.inviteStatus === "delivered").length;
+      const invSent = catGuests.filter(g => g.inviteStatus === "sent").length;
+      const invNotSent = catGuests.filter(g => !g.inviteStatus || g.inviteStatus === "not_sent").length;
+      const confirmedPct = totalAttending > 0 ? Math.round((confirmed / totalAttending) * 100) : 0;
+      const invPct = catGuests.length > 0 ? Math.round(((invDelivered + invSent) / catGuests.length) * 100) : 0;
+
+      const stats = [
+        ["Guest Groups", catGuests.length],
+        ["Total Invited", totalInvited],
+        ["Total Attending", totalAttending],
+        ["Confirmed", `${confirmed} (${confirmedPct}%)`],
+        ["Pending RSVP", pending],
+        ["Declined", declined],
+        ["Invites Delivered", invDelivered],
+        ["Invites Sent", invSent],
+        ["Not Sent", invNotSent],
+        ["Invite Sent %", `${invPct}%`],
+      ];
+
+      // Draw stats grid
+      const colW = (pageW - 28) / 5; // margins 14 on each side
+      let sy = 31;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...dark);
+      doc.text("Category Summary", 14, sy);
+      sy += 3;
+
+      stats.forEach((s, i) => {
+        const col = i % 5;
+        const row = Math.floor(i / 5);
+        const x = 14 + col * colW;
+        const y = sy + row * 18;
+        doc.setFillColor(253, 244, 247);
+        doc.roundedRect(x, y, colW - 3, 15, 1.5, 1.5, "F");
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(...muted);
+        doc.text(String(s[0]).toUpperCase(), x + 3, y + 5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(...dark);
+        doc.text(String(s[1]), x + 3, y + 11);
+      });
+
+      // Guest list table below
+      let tableStartY = sy + 2 * 18 + 5;
+
+      if (catGuests.length === 0) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(10);
+        doc.setTextColor(...muted);
+        doc.text("No guests assigned to this category.", 14, tableStartY + 10);
+      } else {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(...dark);
+        doc.text("Guests in Category", 14, tableStartY);
+        tableStartY += 3;
+
+        const rsvpLabel = { confirmed: "Confirmed", pending: "Pending", declined: "Declined" };
+        const invLabel  = { delivered: "Delivered", sent: "Sent", not_sent: "Not Sent" };
+
+        const guestRows = [...catGuests]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(g => [
+            g.name,
+            g.count || 0,
+            getAttending(g),
+            rsvpLabel[g.rsvp || "pending"],
+            invLabel[g.inviteStatus || "not_sent"],
+            g.inviteSentDate ? fmtDate(g.inviteSentDate) : "—",
+            g.table ? `Table ${g.table}` : "—",
+            g.notes || "—",
+          ]);
+
+        autoTable(doc, {
+          startY: tableStartY,
+          head: [["Name", "Invited", "Attending", "RSVP", "Invite", "Date Sent", "Table", "Notes"]],
+          body: guestRows,
+          theme: "striped",
+          headStyles: { fillColor: catColor, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold" },
+          bodyStyles: { fontSize: 7.5, textColor: dark },
+          alternateRowStyles: { fillColor: [253, 244, 247] },
+          columnStyles: {
+            0: { cellWidth: 55 },
+            1: { cellWidth: 18, halign: "center" },
+            2: { cellWidth: 20, halign: "center" },
+            3: { cellWidth: 24 },
+            4: { cellWidth: 24 },
+            5: { cellWidth: 26 },
+            6: { cellWidth: 20, halign: "center" },
+            7: { cellWidth: "auto" },
+          },
+          didParseCell: (data) => {
+            if (data.section === "body" && data.column.index === 3) {
+              const v = data.cell.raw;
+              if (v === "Confirmed") data.cell.styles.textColor = [26, 107, 64];
+              else if (v === "Declined") data.cell.styles.textColor = [122, 24, 48];
+              else data.cell.styles.textColor = [122, 80, 0];
+            }
+            if (data.section === "body" && data.column.index === 4) {
+              const v = data.cell.raw;
+              if (v === "Delivered") data.cell.styles.textColor = [26, 107, 64];
+              else if (v === "Sent") data.cell.styles.textColor = [42, 74, 142];
+            }
+          },
+          margin: { left: 14, right: 14 },
+        });
+      }
+    });
+
+    // Footer on every page
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...muted);
+      doc.text(`Page ${i} of ${pageCount}`, pageW - 14, doc.internal.pageSize.getHeight() - 6, { align: "right" });
+      doc.text("Thulani & Isuru — Wedding Guest Manager", 14, doc.internal.pageSize.getHeight() - 6);
+    }
+
+    doc.save(`categories-breakdown-report-${new Date().toISOString().split("T")[0]}.pdf`);
+    showToast("Categories breakdown PDF downloaded ✓");
+  };
+
   const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
   const filtered=guests.filter(g=>{
     if(search&&!g.name.toLowerCase().includes(search.toLowerCase())&&!(g.notes||"").toLowerCase().includes(search.toLowerCase())) return false;
@@ -1781,6 +1967,12 @@ export default function App() {
                       onMouseLeave={e=>e.currentTarget.style.background="none"}
                       onClick={()=>{setPdfMenuOpen(false);downloadPDF();}}
                     >Full Report</button>
+                    <button
+                      style={{display:"block",width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"#3D1829",fontSize:13,cursor:"pointer",fontWeight:600}}
+                      onMouseEnter={e=>e.currentTarget.style.background="#FDF4F7"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}
+                      onClick={()=>{setPdfMenuOpen(false);downloadCategoriesBreakdownPDF();}}
+                    >Categories Breakdown</button>
                     <div style={{height:1,background:"#EDD8E2",margin:"4px 0"}}/>
                     {categories.map(cat=>(
                       <button
@@ -1880,7 +2072,7 @@ export default function App() {
           )}
 
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
-          {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast}/>}
+          {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast} downloadCategoriesBreakdownPDF={downloadCategoriesBreakdownPDF}/>}
           {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>
