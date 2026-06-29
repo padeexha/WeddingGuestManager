@@ -488,8 +488,9 @@ const css = `
   .confirm-btns { display:flex; gap:10px; justify-content:center; }
   .cat-manager { max-width:700px; }
   .cat-manager-list { display:flex; flex-direction:column; gap:10px; margin-bottom:24px; }
-  .cat-manager-row { display:flex; align-items:center; gap:12px; background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; padding:12px 16px; }
-  .cat-manager-row:hover { border-color:${T.primary}40; }
+  .cat-manager-item { display:flex; flex-direction:column; background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; overflow:hidden; }
+  .cat-manager-item:hover { border-color:${T.primary}40; }
+  .cat-manager-row { display:flex; align-items:center; gap:12px; padding:12px 16px; }
   .cat-color-swatch { width:34px; height:34px; border-radius:9px; flex-shrink:0; cursor:pointer; border:2px solid transparent; transition:transform .15s; position:relative; }
   .cat-color-swatch:hover { transform:scale(1.08); }
   .cat-name-input { flex:1; border:none; background:transparent; font-size:14px; font-family:'Jost',sans-serif; color:${T.text}; outline:none; padding:4px 0; }
@@ -579,6 +580,37 @@ const css = `
     .toast { left:14px; right:14px; bottom:14px; text-align:center; }
   }
   ::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:${T.surfaceAlt}} ::-webkit-scrollbar-thumb{background:${T.border};border-radius:3px}
+
+  /* Separate Declined and Category RSVP guests styles */
+  .guest-list-container { display:flex; gap:20px; align-items:flex-start; width:100%; }
+  .table-wrap-main { flex:1; min-width:0; }
+  .declined-sidebar { width:320px; flex-shrink:0; background:#fff; border-radius:12px; border:1px solid ${T.border}; box-shadow:0 12px 30px rgba(61,24,41,.05); padding:18px; }
+  .declined-sidebar-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; border-bottom:1px solid ${T.borderLight}; padding-bottom:10px; }
+  .declined-sidebar-title { font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:600; color:${T.text}; }
+  .declined-list { display:flex; flex-direction:column; gap:10px; max-height:60vh; overflow-y:auto; padding-right:4px; }
+  .declined-card { padding:12px; border-radius:8px; background:${T.surfaceAlt}; border:1px solid ${T.borderLight}; position:relative; transition:all 0.15s; text-align:left; }
+  .declined-card:hover { border-color:${T.border}; box-shadow:0 2px 8px rgba(61,24,41,0.03); }
+  .declined-card-name { font-weight:500; font-size:13px; color:${T.text}; margin-bottom:4px; padding-right:56px; word-break:break-word; }
+  .declined-card-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .declined-card-cat { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:500; }
+  .declined-card-count { font-size:11px; color:${T.textMuted}; }
+  .declined-card-actions { position:absolute; top:10px; right:10px; display:flex; gap:4px; }
+  .toggle-separate-declined { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:${T.textMid}; cursor:pointer; user-select:none; padding:8px 12px; border-radius:9px; border:1.5px solid ${T.border}; background:none; font-family:'Jost',sans-serif; transition:all .15s; font-weight:500; white-space:nowrap; }
+  .toggle-separate-declined:hover { background:${T.surfaceAlt}; border-color:${T.primary}; }
+  .toggle-separate-declined.active { background:${T.primaryBg}; color:${T.primaryDark}; border-color:${T.primary}; }
+
+  .cat-guests-expansion { background:${T.surfaceAlt}; border-top:1px dashed ${T.border}; padding:16px 20px; text-align:left; }
+  .cat-guests-rsvp-group { margin-bottom:12px; }
+  .cat-guests-rsvp-group:last-child { margin-bottom:0; }
+  .cat-guests-rsvp-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+  .cat-guests-names-list { display:flex; flex-wrap:wrap; gap:6px; }
+  .cat-guest-bubble { font-size:12px; background:${T.surface}; border:1px solid ${T.borderLight}; padding:3px 10px; border-radius:15px; color:${T.textMid}; display:inline-flex; align-items:center; gap:5px; }
+  .cat-guest-bubble-count { font-size:10px; font-weight:600; color:${T.textMuted}; background:${T.surfaceAlt}; border-radius:10px; padding:1px 5px; }
+
+  @media (max-width: 960px) {
+    .guest-list-container { flex-direction:column; }
+    .declined-sidebar { width:100%; }
+  }
 `;
 
 // ── Small shared components ───────────────────────────────────────────────────
@@ -746,19 +778,96 @@ function InvitationsTab({ guests, updateGuests, categories, showToast }) {
 function CategoryManager({ categories, setCategories, guests, showToast }) {
   const [newName,setNewName]=useState("");
   const [newColor,setNewColor]=useState(PALETTE[5]);
+  const [expandedCats, setExpandedCats] = useState({});
+
+  const toggleExpand = (catName) => {
+    setExpandedCats(prev => ({ ...prev, [catName]: !prev[catName] }));
+  };
+
   const handleRename=(idx,name)=>{const old=categories[idx].name;const next=name.trim();if(!next||next===old)return;setCategories(categories.map((c,i)=>i===idx?{...c,name:next}:c),old,next,{action:"category_renamed",details:{from:old,to:next}});showToast(`Renamed to "${next}" ✓`);};
   const handleRecolor=(idx,color)=>setCategories(categories.map((c,i)=>i===idx?{...c,color}:c),null,null,{action:"category_recolored",details:{categoryName:categories[idx].name}});
   const handleAdd=()=>{const t=newName.trim();if(!t)return;if(categories.find(c=>c.name.toLowerCase()===t.toLowerCase())){showToast("Already exists");return;}setCategories([...categories,{name:t,color:newColor}],null,null,{action:"category_added",details:{categoryName:t}});setNewName("");setNewColor(PALETTE[Math.floor(Math.random()*PALETTE.length)]);showToast(`"${t}" added ✓`);};
   const handleDelete=(idx)=>{const cat=categories[idx];const n=guests.filter(g=>g.category===cat.name).length;if(n>0){showToast(`${n} guest${n!==1?"s":""} in this category — reassign first`);return;}setCategories(categories.filter((_,i)=>i!==idx),null,null,{action:"category_deleted",details:{categoryName:cat.name}});showToast(`"${cat.name}" removed`);};
+
   return(
     <div className="cat-manager">
       <div className="top-bar"><h2 className="page-title">Categories</h2></div>
       <p className="cat-manager-hint">Click the colour swatch to change it · Click the name to rename · Categories with guests can't be deleted.</p>
       <div className="cat-manager-list">
         {categories.map((cat,idx)=>{
-          const gCount=guests.filter(g=>g.category===cat.name).length;
-          const attCount=guests.filter(g=>g.category===cat.name).reduce((a,g)=>a+getAttending(g),0);
-          return(<div className="cat-manager-row" key={cat.name+idx}><ColorPicker value={cat.color} onChange={color=>handleRecolor(idx,color)}/><input className="cat-name-input" defaultValue={cat.name} onBlur={e=>handleRename(idx,e.target.value)} onKeyDown={e=>e.key==="Enter"&&e.target.blur()}/><span className="cat-guest-count">{gCount} groups · {attCount} attending</span><button className="cat-del-btn" disabled={gCount>0} onClick={()=>handleDelete(idx)} title={gCount>0?"Reassign guests first":"Delete"}>✕</button></div>);
+          const catGuests = guests.filter(g=>g.category===cat.name);
+          const gCount=catGuests.length;
+          const attCount=catGuests.reduce((a,g)=>a+getAttending(g),0);
+          const isExpanded=!!expandedCats[cat.name];
+
+          const confGuests=catGuests.filter(g=>g.rsvp==="confirmed");
+          const pendGuests=catGuests.filter(g=>g.rsvp==="pending"||!g.rsvp);
+          const declGuests=catGuests.filter(g=>g.rsvp==="declined");
+
+          return(
+            <div className="cat-manager-item" key={cat.name+idx}>
+              <div className="cat-manager-row">
+                <ColorPicker value={cat.color} onChange={color=>handleRecolor(idx,color)}/>
+                <input className="cat-name-input" defaultValue={cat.name} onBlur={e=>handleRename(idx,e.target.value)} onKeyDown={e=>e.key==="Enter"&&e.target.blur()}/>
+                <span className="cat-guest-count">{gCount} groups · {attCount} attending</span>
+                {gCount > 0 && (
+                  <button className="btn btn-ghost btn-sm" onClick={()=>toggleExpand(cat.name)} style={{padding:"5px 10px", marginLeft:8, display:"flex", alignItems:"center", gap:4}}>
+                    {isExpanded ? "▲ Hide Guests" : "▼ View Guests"}
+                  </button>
+                )}
+                <button className="cat-del-btn" disabled={gCount>0} onClick={()=>handleDelete(idx)} title={gCount>0?"Reassign guests first":"Delete"}>✕</button>
+              </div>
+              {isExpanded && gCount > 0 && (
+                <div className="cat-guests-expansion">
+                  {confGuests.length > 0 && (
+                    <div className="cat-guests-rsvp-group">
+                      <div className="cat-guests-rsvp-title" style={{color:"#2DBD72"}}>
+                        <span>●</span> Confirmed ({confGuests.length} groups · {confGuests.reduce((a,g)=>a+getAttending(g),0)} attending)
+                      </div>
+                      <div className="cat-guests-names-list">
+                        {confGuests.map(g=>(
+                          <span key={g.id} className="cat-guest-bubble" title={`${g.name} (Confirmed RSVP)`}>
+                            {g.name}
+                            <span className="cat-guest-bubble-count">{getAttending(g)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {pendGuests.length > 0 && (
+                    <div className="cat-guests-rsvp-group">
+                      <div className="cat-guests-rsvp-title" style={{color:"#E8A020"}}>
+                        <span>●</span> Pending RSVP ({pendGuests.length} groups · {pendGuests.reduce((a,g)=>a+g.count,0)} invited)
+                      </div>
+                      <div className="cat-guests-names-list">
+                        {pendGuests.map(g=>(
+                          <span key={g.id} className="cat-guest-bubble" title={`${g.name} (RSVP Pending)`}>
+                            {g.name}
+                            <span className="cat-guest-bubble-count">{g.count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {declGuests.length > 0 && (
+                    <div className="cat-guests-rsvp-group">
+                      <div className="cat-guests-rsvp-title" style={{color:"#E84060"}}>
+                        <span>●</span> Declined ({declGuests.length} groups)
+                      </div>
+                      <div className="cat-guests-names-list">
+                        {declGuests.map(g=>(
+                          <span key={g.id} className="cat-guest-bubble" style={{textDecoration:"line-through", opacity:0.75}} title={`${g.name} (Declined RSVP)`}>
+                            {g.name}
+                            <span className="cat-guest-bubble-count" style={{textDecoration:"none"}}>{g.count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
         })}
       </div>
       <div className="add-cat-row"><ColorPicker value={newColor} onChange={setNewColor}/><input className="add-cat-input" placeholder="New category e.g. Isuru's Invites" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAdd()}/><button className="btn btn-primary" onClick={handleAdd} disabled={!newName.trim()}>+ Add</button></div>
@@ -1077,6 +1186,7 @@ export default function App() {
   const [auditLogs,setAuditLogs]=useState([]);
   const [auditLoading,setAuditLoading]=useState(false);
   const [pdfMenuOpen,setPdfMenuOpen]=useState(false);
+  const [separateDeclined,setSeparateDeclined]=useState(true);
 
   const [splash, setSplash] = useState(true);
   const isAdmin = isAdminUser(user);
@@ -1614,6 +1724,7 @@ export default function App() {
     if(search&&!g.name.toLowerCase().includes(search.toLowerCase())&&!(g.notes||"").toLowerCase().includes(search.toLowerCase())) return false;
     if(filterCat!=="all"&&g.category!==filterCat) return false;
     if(filterRsvp!=="all"&&g.rsvp!==filterRsvp) return false;
+    if(separateDeclined&&filterRsvp!=="declined"&&g.rsvp==="declined") return false;
     if(filterTable!=="all"){if(filterTable==="none"&&g.table)return false;if(filterTable!=="none"&&g.table!==Number(filterTable))return false;}
     return true;
   }).sort((a,b)=>{
@@ -1621,6 +1732,14 @@ export default function App() {
     if(sortCol==="attending"){av=getAttending(a);bv=getAttending(b);}else if(sortCol==="table"){av=a.table||9999;bv=b.table||9999;}else if(sortCol==="count"){av=a.count;bv=b.count;}else{av=(a[sortCol]||"").toString().toLowerCase();bv=(b[sortCol]||"").toString().toLowerCase();}
     return sortDir==="asc"?(av>bv?1:-1):(av<bv?1:-1);
   });
+
+  const declinedGuestsFiltered=guests.filter(g=>{
+    if(g.rsvp!=="declined") return false;
+    if(search&&!g.name.toLowerCase().includes(search.toLowerCase())&&!(g.notes||"").toLowerCase().includes(search.toLowerCase())) return false;
+    if(filterCat!=="all"&&g.category!==filterCat) return false;
+    if(filterTable!=="all"){if(filterTable==="none"&&g.table)return false;if(filterTable!=="none"&&g.table!==Number(filterTable))return false;}
+    return true;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
 
   const SH=({col})=>(<span style={{color:sortCol===col?T.primary:T.borderLight,marginLeft:4,fontSize:10}}>{sortCol===col?(sortDir==="asc"?"▲":"▼"):"⇅"}</span>);
   const invSentCount=guests.filter(g=>g.inviteStatus==="sent"||g.inviteStatus==="delivered").length;
@@ -1694,34 +1813,67 @@ export default function App() {
                 <select className="filter-select" value={filterCat} onChange={e=>setFilterCat(e.target.value)}><option value="all">All categories</option>{categories.map(c=><option key={c.name} value={c.name}>{c.name}</option>)}</select>
                 <select className="filter-select" value={filterRsvp} onChange={e=>setFilterRsvp(e.target.value)}><option value="all">All RSVP</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="declined">Declined</option></select>
                 <select className="filter-select" value={filterTable} onChange={e=>setFilterTable(e.target.value)}><option value="all">All tables</option><option value="none">Unassigned</option>{tables.map(t=><option key={t} value={t}>Table {t}</option>)}</select>
+                <button type="button" className={`toggle-separate-declined${separateDeclined?" active":""}`} onClick={()=>setSeparateDeclined(!separateDeclined)}>
+                  Separate Declined
+                </button>
                 {(search||filterCat!=="all"||filterRsvp!=="all"||filterTable!=="all")&&<button className="btn btn-ghost" style={{padding:"7px 12px"}} onClick={()=>{setSearch("");setFilterCat("all");setFilterRsvp("all");setFilterTable("all");}}>✕ Clear</button>}
                 <span className="results-info">{filtered.length}/{guests.length} groups · {filtered.reduce((a,g)=>a+getAttending(g),0)} attending</span>
               </div>
-              <div className="table-wrap">
-                {filtered.length===0?<div className="empty"><div style={{fontSize:36,marginBottom:12}}>🪷</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:T.textMuted}}>No guests found</div></div>:(
-                  <table><thead><tr>
-                    <th style={{width:"20%"}} onClick={()=>handleSort("name")}>Name <SH col="name"/></th>
-                    <th style={{width:"14%"}} onClick={()=>handleSort("category")}>Category <SH col="category"/></th>
-                    <th style={{width:"9%"}} onClick={()=>handleSort("attending")}>Attending <SH col="attending"/></th>
-                    <th style={{width:"12%"}}>RSVP</th>
-                    <th style={{width:"13%"}}>Invite</th>
-                    <th style={{width:"7%",textAlign:"center"}} onClick={()=>handleSort("table")}>Table <SH col="table"/></th>
-                    <th style={{width:"15%"}}>Notes</th>
-                    <th style={{width:"10%",textAlign:"right"}}>Actions</th>
-                  </tr></thead><tbody>
-                    {filtered.map(g=>(
-                      <tr key={g.id}>
-                        <td className="name-cell" title={g.name}>{g.name}</td>
-                        <td><CatBadge category={g.category} categories={categories}/></td>
-                        <td><CountDisplay g={g}/></td>
-                        <td><RsvpBadge rsvp={g.rsvp} onChange={rsvp=>handleRsvpChange(g.id,rsvp)}/></td>
-                        <td><InvBadge status={g.inviteStatus||"not_sent"} onChange={s=>handleInviteChange(g.id,s)}/></td>
-                        <td style={{textAlign:"center"}}>{g.table?<span className="table-tag">T{g.table}</span>:<span style={{color:T.borderLight}}>—</span>}</td>
-                        <td style={{fontSize:12,color:T.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:0}} title={g.notes||""}>{g.notes||<span style={{color:T.borderLight}}>—</span>}</td>
-                        <td style={{textAlign:"right"}}><button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit">✏️</button><button className="action-btn del" onClick={()=>setConfirmId(g.id)} title="Remove">🗑</button></td>
-                      </tr>
-                    ))}
-                  </tbody></table>
+              <div className="guest-list-container">
+                <div className="table-wrap table-wrap-main">
+                  {filtered.length===0?<div className="empty"><div style={{fontSize:36,marginBottom:12}}>🪷</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:T.textMuted}}>No guests found</div></div>:(
+                    <table><thead><tr>
+                      <th style={{width:"20%"}} onClick={()=>handleSort("name")}>Name <SH col="name"/></th>
+                      <th style={{width:"14%"}} onClick={()=>handleSort("category")}>Category <SH col="category"/></th>
+                      <th style={{width:"9%"}} onClick={()=>handleSort("attending")}>Attending <SH col="attending"/></th>
+                      <th style={{width:"12%"}}>RSVP</th>
+                      <th style={{width:"13%"}}>Invite</th>
+                      <th style={{width:"7%",textAlign:"center"}} onClick={()=>handleSort("table")}>Table <SH col="table"/></th>
+                      <th style={{width:"15%"}}>Notes</th>
+                      <th style={{width:"10%",textAlign:"right"}}>Actions</th>
+                    </tr></thead><tbody>
+                      {filtered.map(g=>(
+                        <tr key={g.id}>
+                          <td className="name-cell" title={g.name}>{g.name}</td>
+                          <td><CatBadge category={g.category} categories={categories}/></td>
+                          <td><CountDisplay g={g}/></td>
+                          <td><RsvpBadge rsvp={g.rsvp} onChange={rsvp=>handleRsvpChange(g.id,rsvp)}/></td>
+                          <td><InvBadge status={g.inviteStatus||"not_sent"} onChange={s=>handleInviteChange(g.id,s)}/></td>
+                          <td style={{textAlign:"center"}}>{g.table?<span className="table-tag">T{g.table}</span>:<span style={{color:T.borderLight}}>—</span>}</td>
+                          <td style={{fontSize:12,color:T.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:0}} title={g.notes||""}>{g.notes||<span style={{color:T.borderLight}}>—</span>}</td>
+                          <td style={{textAlign:"right"}}><button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit">✏️</button><button className="action-btn del" onClick={()=>setConfirmId(g.id)} title="Remove">🗑</button></td>
+                        </tr>
+                      ))}
+                    </tbody></table>
+                  )}
+                </div>
+
+                {separateDeclined && filterRsvp !== "declined" && declinedGuestsFiltered.length > 0 && (
+                  <div className="declined-sidebar">
+                    <div className="declined-sidebar-header">
+                      <span className="declined-sidebar-title">Declined RSVPs</span>
+                      <span className="nav-count" style={{background:T.surfaceAlt, color:T.textMid, marginLeft:0}}>{declinedGuestsFiltered.length}</span>
+                    </div>
+                    <div className="declined-list">
+                      {declinedGuestsFiltered.map(g=>{
+                        const catColor = categories.find(c=>c.name===g.category)?.color || T.primary;
+                        return (
+                          <div key={g.id} className="declined-card">
+                            <div className="declined-card-name" title={g.name}>{g.name}</div>
+                            <div className="declined-card-meta">
+                              <span className="declined-card-cat" style={{background:`${catColor}15`, color:catColor}}>{g.category.replace(" Invites","")}</span>
+                              <span className="declined-card-count">{g.count} invited</span>
+                            </div>
+                            <div className="declined-card-actions">
+                              <button className="action-btn" onClick={()=>handleRsvpChange(g.id,"pending")} title="Re-invite" style={{fontSize:13}}>🔄</button>
+                              <button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit" style={{fontSize:13}}>✏️</button>
+                              <button className="action-btn del" onClick={()=>setConfirmId(g.id)} title="Remove" style={{fontSize:13}}>🗑</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
             </>
