@@ -1862,18 +1862,20 @@ export default function App() {
         const angleDelta = (seg.value / total) * 2 * Math.PI;
         const endAngle = currentAngle + angleDelta;
 
-        // Construct polygon points for outer arc segment
-        const points = [{ x: cx, y: cy }];
         const steps = 40;
-        for (let i = 0; i <= steps; i++) {
-          const angle = currentAngle + (angleDelta * (i / steps));
-          const x = cx + outerRadius * Math.cos(angle);
-          const y = cy + outerRadius * Math.sin(angle);
-          points.push({ x, y });
-        }
-        
         doc.setFillColor(...seg.color);
-        doc.polygon(points, "F");
+
+        for (let i = 0; i < steps; i++) {
+          const a1 = currentAngle + (angleDelta * (i / steps));
+          const a2 = currentAngle + (angleDelta * ((i + 1) / steps));
+          
+          const x1 = cx + outerRadius * Math.cos(a1);
+          const y1 = cy + outerRadius * Math.sin(a1);
+          const x2 = cx + outerRadius * Math.cos(a2);
+          const y2 = cy + outerRadius * Math.sin(a2);
+
+          doc.triangle(cx, cy, x1, y1, x2, y2, "F");
+        }
 
         currentAngle = endAngle;
       });
