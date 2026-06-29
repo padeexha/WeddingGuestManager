@@ -1573,7 +1573,8 @@ export default function App() {
       doc.text("Thulani & Isuru — Wedding Guest Manager", 14, doc.internal.pageSize.getHeight() - 6);
     }
 
-    doc.save(`wedding-guest-report-${new Date().toISOString().split("T")[0]}.pdf`);
+    const dateStr = new Date().toISOString().split("T")[0];
+    doc.save(`Full_Report - ${dateStr}.pdf`);
     showToast("PDF downloaded ✓");
   };
 
@@ -1721,14 +1722,16 @@ export default function App() {
       doc.text("Thulani & Isuru — Wedding Guest Manager", 14, doc.internal.pageSize.getHeight() - 6);
     }
 
-    const slug = categoryName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    doc.save(`guest-report-${slug}-${new Date().toISOString().split("T")[0]}.pdf`);
+    const cleanCatName = categoryName.replace(/[\\/:*?"<>|]/g, "");
+    const dateStr = new Date().toISOString().split("T")[0];
+    doc.save(`${cleanCatName} - ${dateStr}.pdf`);
     showToast(`PDF for "${categoryName}" downloaded ✓`);
   };
 
   const downloadCategoriesBreakdownPDF = () => {
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
     const rose = [176, 82, 120];
     const dark = [61, 24, 41];
     const muted = [122, 77, 99];
@@ -1745,15 +1748,191 @@ export default function App() {
       ] : [176, 82, 120];
     };
 
-    let firstPage = true;
+    // ── PAGE 1: COVER / SUMMARY DASHBOARD ─────────────────────────────
+    // Draw subtle card borders
+    doc.setDrawColor(237, 216, 226); // light pink border
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(14, 36, 156, 150, 3, 3, "D");
+    doc.roundedRect(180, 36, 103, 150, 3, 3, "D");
+
+    // Header block
+    doc.setFillColor(...dark);
+    doc.rect(0, 0, pageW, 30, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(245, 220, 235);
+    doc.text("Thulani & Isuru — Category Breakdown & Summary", pageW / 2, 13, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(196, 154, 108);
+    doc.text(`Generated ${now}`, pageW / 2, 21, { align: "center" });
+
+    // Dividers and headings
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...rose);
+    doc.text("Categories Attendance", 19, 44);
+    doc.text("RSVP Status Overview", 185, 44);
+
+    // Left Panel: Categories list
+    let catY = 51;
+    const catSpacing = categories.length > 0 ? Math.min(14, 125 / categories.length) : 14;
 
     categories.forEach((cat) => {
       const catGuests = guests.filter(g => g.category === cat.name);
+      const totalInv = catGuests.reduce((a, g) => a + g.count, 0);
+      const totalAtt = catGuests.reduce((a, g) => a + getAttending(g), 0);
+      const grpCount = catGuests.length;
+      const catColor = hexToRgb(cat.color || "#A0547A");
+
+      // Draw color dot
+      doc.setFillColor(...catColor);
+      doc.circle(23, catY + 3.5, 2, "F");
+
+      // Draw category name (limit length to fit)
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(...dark);
+      const displayName = cat.name.length > 25 ? cat.name.substring(0, 22) + "..." : cat.name;
+      doc.text(displayName, 29, catY + 5);
+
+      // Draw progress bar representing attending / invited
+      const barW = 55;
+      const barH = 2.5;
+      const barX = 80;
+      const barY = catY + 2.5;
       
-      if (!firstPage) {
-        doc.addPage();
+      // Background bar (faint gray/pink)
+      doc.setFillColor(245, 235, 240);
+      doc.roundedRect(barX, barY, barW, barH, 1, 1, "F");
+      
+      // Filled bar
+      if (totalInv > 0) {
+        const fillW = Math.min(barW, barW * (totalAtt / totalInv));
+        doc.setFillColor(...catColor);
+        doc.roundedRect(barX, barY, fillW, barH, 1, 1, "F");
       }
-      firstPage = false;
+
+      // Attending count
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(...dark);
+      doc.text(String(totalAtt), 143, catY + 5, { align: "right" });
+
+      // Group count
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...muted);
+      doc.text(`${grpCount} group${grpCount !== 1 ? "s" : ""}`, 147, catY + 5);
+
+      catY += catSpacing;
+    });
+
+    // Right Panel: RSVP Status
+    const totalInvited    = guests.reduce((a, g) => a + g.count, 0);
+    const totalAttending  = guests.reduce((a, g) => a + getAttending(g), 0);
+    const confirmed       = guests.filter(g => g.rsvp === "confirmed").reduce((a, g) => a + getAttending(g), 0);
+    const pending         = guests.filter(g => g.rsvp === "pending").reduce((a, g) => a + getAttending(g), 0);
+    const declined        = guests.filter(g => g.rsvp === "declined").reduce((a, g) => a + getAttending(g), 0);
+
+    const confirmedColor = [45, 189, 114]; // #2DBD72
+    const pendingColor = [232, 160, 32];  // #E8A020
+    const declinedColor = [232, 64, 96];  // #E84060
+
+    const segments = [
+      { value: confirmed, color: confirmedColor },
+      { value: pending, color: pendingColor },
+      { value: declined, color: declinedColor }
+    ];
+
+    // Draw donut chart
+    const cx = 231.5;
+    const cy = 90;
+    const outerR = 24;
+    const innerR = 16;
+
+    const drawDonutChart = (cx, cy, outerRadius, innerRadius, segments) => {
+      const total = segments.reduce((sum, s) => sum + s.value, 0);
+      if (total === 0) return;
+
+      let currentAngle = -Math.PI / 2; // Start at 12 o'clock
+
+      segments.forEach((seg) => {
+        if (seg.value === 0) return;
+        const angleDelta = (seg.value / total) * 2 * Math.PI;
+        const endAngle = currentAngle + angleDelta;
+
+        // Construct polygon points for outer arc segment
+        const points = [{ x: cx, y: cy }];
+        const steps = 40;
+        for (let i = 0; i <= steps; i++) {
+          const angle = currentAngle + (angleDelta * (i / steps));
+          const x = cx + outerRadius * Math.cos(angle);
+          const y = cy + outerRadius * Math.sin(angle);
+          points.push({ x, y });
+        }
+        
+        doc.setFillColor(...seg.color);
+        doc.polygon(points, "F");
+
+        currentAngle = endAngle;
+      });
+
+      // Draw inner white circle to create the donut hole
+      doc.setFillColor(255, 255, 255);
+      doc.circle(cx, cy, innerRadius, "F");
+    };
+
+    drawDonutChart(cx, cy, outerR, innerR, segments);
+
+    // Text inside the donut hole
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(...dark);
+    doc.text(String(totalAttending), cx, cy - 1, { align: "center" });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...muted);
+    doc.text("ATTENDING", cx, cy + 5, { align: "center" });
+
+    // Legend table/list below donut
+    let legendY = 135;
+    
+    // Confirmed row
+    doc.setFillColor(...confirmedColor);
+    doc.circle(187, legendY + 2.5, 1.5, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...dark);
+    doc.text("Confirmed", 192, legendY + 4);
+    doc.setFont("helvetica", "bold");
+    doc.text(String(confirmed), 273, legendY + 4, { align: "right" });
+
+    // Pending row
+    legendY += 10;
+    doc.setFillColor(...pendingColor);
+    doc.circle(187, legendY + 2.5, 1.5, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...dark);
+    doc.text("Pending RSVP", 192, legendY + 4);
+    doc.setFont("helvetica", "bold");
+    doc.text(String(pending), 273, legendY + 4, { align: "right" });
+
+    // Declined row
+    legendY += 10;
+    doc.setFillColor(...declinedColor);
+    doc.circle(187, legendY + 2.5, 1.5, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...dark);
+    doc.text("Declined", 192, legendY + 4);
+    doc.setFont("helvetica", "bold");
+    doc.text(String(declined), 273, legendY + 4, { align: "right" });
+
+    // ── PAGES 2+: INDIVIDUAL CATEGORY DETAILS ─────────────────────────
+    categories.forEach((cat) => {
+      const catGuests = guests.filter(g => g.category === cat.name);
+      
+      doc.addPage();
 
       // Header block with the category's theme color
       const catColor = hexToRgb(cat.color || "#A0547A");
@@ -1901,7 +2080,8 @@ export default function App() {
       doc.text("Thulani & Isuru — Wedding Guest Manager", 14, doc.internal.pageSize.getHeight() - 6);
     }
 
-    doc.save(`categories-breakdown-report-${new Date().toISOString().split("T")[0]}.pdf`);
+    const dateStr = new Date().toISOString().split("T")[0];
+    doc.save(`Categories_Breakdown - ${dateStr}.pdf`);
     showToast("Categories breakdown PDF downloaded ✓");
   };
 
