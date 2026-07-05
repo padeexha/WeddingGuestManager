@@ -1186,6 +1186,7 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [pdfMenuOpen, setPdfMenuOpen] = useState(false);
   
   const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
   
@@ -1244,14 +1245,19 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
     showToast("Item deleted");
   };
 
-  const downloadFinancePDF = () => {
+  const downloadFinancePDF = (mode = 'all') => {
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const dateStr = new Date().toISOString().split('T')[0];
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.setTextColor(92, 40, 64);
-    doc.text("Wedding Expenses Report", 14, 22);
+    
+    let title = "Wedding Expenses Report";
+    if (mode === 'bride') title = "Bride's Expenses Report";
+    if (mode === 'groom') title = "Groom's Expenses Report";
+    
+    doc.text(title, 14, 22);
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
@@ -1270,7 +1276,20 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
     doc.text(`Groom Needs to Pay: LKR ${groomOwes.toLocaleString()}`, 180, 46);
     
     const tableCols = ["Description", "Category", "Responsibility", "Total Cost", "Bride Paid", "Groom Paid", "Remaining", "Status"];
-    const tableRows = budgetItems.map(item => {
+    
+    const itemsToExport = budgetItems.filter(item => {
+      if (mode === 'all') return true;
+      let bExpected = 0, gExpected = 0;
+      if (item.splitMode === 'bride') bExpected = item.totalAmount || 0;
+      else if (item.splitMode === 'groom') gExpected = item.totalAmount || 0;
+      else if (item.splitMode === 'custom') { bExpected = item.expectedBride || 0; gExpected = item.expectedGroom || 0; }
+      else { bExpected = (item.totalAmount || 0) / 2; gExpected = (item.totalAmount || 0) / 2; }
+      if (mode === 'bride') return bExpected > 0;
+      if (mode === 'groom') return gExpected > 0;
+      return true;
+    });
+
+    const tableRows = itemsToExport.map(item => {
       const bPaid = item.payments ? item.payments.filter(p => p.payer === 'Bride').reduce((s,p) => s + p.amount, 0) : (item.bridePaid ?? (item.amountPaid || 0));
       const gPaid = item.payments ? item.payments.filter(p => p.payer === 'Groom').reduce((s,p) => s + p.amount, 0) : (item.groomPaid || 0);
       const totalCost = item.totalAmount || 0;
@@ -1305,8 +1324,8 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
       alternateRowStyles: { fillColor: [250, 246, 248] },
     });
     
-    doc.save(`Finance_Report_${dateStr}.pdf`);
-    showToast("Finance report PDF downloaded ✓");
+    doc.save(`${title.replace(/ /g, '_')}_${dateStr}.pdf`);
+    showToast(`${title} PDF downloaded ✓`);
   };
 
   return (
@@ -1358,8 +1377,29 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
             <option value="groom">Groom's Expenses</option>
           </select>
         </div>
-        <div style={{display:'flex', gap: 12}}>
-          <button className="btn btn-secondary" onClick={downloadFinancePDF}>⬇ Export PDF</button>
+        <div style={{display:'flex', gap: 12, position: 'relative'}}>
+          <div style={{position: 'relative'}}>
+            <button className="btn btn-secondary" onClick={() => setPdfMenuOpen(!pdfMenuOpen)}>
+              ⬇ Export PDF <span style={{fontSize:9,opacity:.7}}>{pdfMenuOpen?"▲":"▼"}</span>
+            </button>
+            {pdfMenuOpen && (
+              <div 
+                className="pdf-dropdown-menu"
+                style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 4, 
+                  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, 
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50,
+                  minWidth: 180, overflow: 'hidden'
+                }}
+                onMouseLeave={() => setPdfMenuOpen(false)}
+              >
+                <div style={{padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#999', backgroundColor: '#f9fafb', borderBottom: '1px solid #eee'}}>PDF EXPORT OPTIONS</div>
+                <div className="pdf-menu-item" style={{padding: '10px 16px', fontSize: 13, cursor: 'pointer', borderBottom: '1px solid #eee'}} onClick={() => { setPdfMenuOpen(false); downloadFinancePDF('all'); }}>All Expenses</div>
+                <div className="pdf-menu-item" style={{padding: '10px 16px', fontSize: 13, cursor: 'pointer', borderBottom: '1px solid #eee'}} onClick={() => { setPdfMenuOpen(false); downloadFinancePDF('bride'); }}>Bride's Expenses Only</div>
+                <div className="pdf-menu-item" style={{padding: '10px 16px', fontSize: 13, cursor: 'pointer'}} onClick={() => { setPdfMenuOpen(false); downloadFinancePDF('groom'); }}>Groom's Expenses Only</div>
+              </div>
+            )}
+          </div>
           <button className="btn btn-primary" onClick={() => handleOpenModal()}>+ Add Expense</button>
         </div>
       </div>
