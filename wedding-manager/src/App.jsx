@@ -1186,9 +1186,15 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   
-  const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
-  const totalBridePaid = budgetItems.reduce((acc, item) => acc + (item.bridePaid ?? (item.amountPaid || 0)), 0);
-  const totalGroomPaid = budgetItems.reduce((acc, item) => acc + (item.groomPaid || 0), 0);
+  const totalBudget = budgetItems.reduce((acc, item) => acc + (item.expectedBride || 0) + (item.expectedGroom || 0) + (item.totalAmount && !item.expectedBride && !item.expectedGroom ? item.totalAmount : 0), 0);
+  const totalBridePaid = budgetItems.reduce((acc, item) => {
+    if (item.payments) return acc + item.payments.filter(p => p.payer === 'Bride').reduce((s, p) => s + p.amount, 0);
+    return acc + (item.bridePaid ?? (item.amountPaid || 0));
+  }, 0);
+  const totalGroomPaid = budgetItems.reduce((acc, item) => {
+    if (item.payments) return acc + item.payments.filter(p => p.payer === 'Groom').reduce((s, p) => s + p.amount, 0);
+    return acc + (item.groomPaid || 0);
+  }, 0);
   const totalPaid = totalBridePaid + totalGroomPaid;
   const remainingBalance = totalBudget - totalPaid;
 
@@ -1271,19 +1277,32 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
             {budgetItems.length === 0 ? (
               <tr><td colSpan="9" style={{textAlign:'center', padding:40, color:'#888'}}>No expenses yet.</td></tr>
             ) : budgetItems.map(item => {
-              const bPaid = item.bridePaid ?? (item.amountPaid || 0);
-              const gPaid = item.groomPaid || 0;
+              const bPaid = item.payments ? item.payments.filter(p => p.payer === 'Bride').reduce((s,p) => s + p.amount, 0) : (item.bridePaid ?? (item.amountPaid || 0));
+              const gPaid = item.payments ? item.payments.filter(p => p.payer === 'Groom').reduce((s,p) => s + p.amount, 0) : (item.groomPaid || 0);
+              const bExpected = item.expectedBride ?? (item.totalAmount || 0);
+              const gExpected = item.expectedGroom || 0;
+              const totalExpected = bExpected + gExpected;
+              
               const tPaid = bPaid + gPaid;
-              const remaining = item.totalAmount - tPaid;
+              const remaining = totalExpected - tPaid;
               const status = remaining <= 0 ? "Paid" : tPaid > 0 ? "Partial" : "Pending";
               const statusColor = status === "Paid" ? "#10b981" : status === "Partial" ? "#f59e0b" : "#ef4444";
+              
+              const catDisplay = item.subcategory ? `${item.category} > ${item.subcategory}` : (item.category || "Uncategorized");
+
               return (
                 <tr key={item.id}>
                   <td style={{fontWeight:600}}>{item.description}</td>
-                  <td><span className="table-tag">{item.category || "Uncategorized"}</span></td>
-                  <td style={{textAlign:'right'}}>${Number(item.totalAmount).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#f472b6'}}>${Number(bPaid).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#60a5fa'}}>${Number(gPaid).toLocaleString()}</td>
+                  <td><span className="table-tag">{catDisplay}</span></td>
+                  <td style={{textAlign:'right'}}>${Number(totalExpected).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#f472b6'}}>
+                    ${Number(bPaid).toLocaleString()}
+                    <span style={{fontSize:10, color:'#888', display:'block'}}>exp: ${Number(bExpected).toLocaleString()}</span>
+                  </td>
+                  <td style={{textAlign:'right', color:'#60a5fa'}}>
+                    ${Number(gPaid).toLocaleString()}
+                    <span style={{fontSize:10, color:'#888', display:'block'}}>exp: ${Number(gExpected).toLocaleString()}</span>
+                  </td>
                   <td style={{textAlign:'right', color:'#f59e0b'}}>${remaining.toLocaleString()}</td>
                   <td>
                     <span style={{
@@ -1321,6 +1340,12 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
 function FinanceCategoryManager({ categories, setCategories, budgetItems, showToast, saveBudgetToCloud }) {
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PALETTE[5]);
+  const [expandedCats, setExpandedCats] = useState({});
+  const [newSubcats, setNewSubcats] = useState({});
+
+  const toggleExpand = (catName) => {
+    setExpandedCats(prev => ({ ...prev, [catName]: !prev[catName] }));
+  };
 
   const handleRename = (idx, name) => {
     const old = categories[idx].name;
@@ -1345,7 +1370,7 @@ function FinanceCategoryManager({ categories, setCategories, budgetItems, showTo
       showToast("Already exists");
       return;
     }
-    const updated = [...categories, { name: t, color: newColor }];
+    const updated = [...categories, { name: t, color: newColor, subcategories: [] }];
     setCategories(updated);
     saveBudgetToCloud(budgetItems, updated);
     setNewName("");
@@ -1366,12 +1391,42 @@ function FinanceCategoryManager({ categories, setCategories, budgetItems, showTo
     showToast(`"${cat.name}" removed`);
   };
 
+  const handleAddSubcat = (idx, subName) => {
+    const t = subName.trim();
+    if (!t) return;
+    const cat = categories[idx];
+    const subs = cat.subcategories || [];
+    if (subs.find(s => s.toLowerCase() === t.toLowerCase())) {
+      showToast("Subcategory already exists");
+      return;
+    }
+    const updated = categories.map((c, i) => i === idx ? { ...c, subcategories: [...subs, t] } : c);
+    setCategories(updated);
+    saveBudgetToCloud(budgetItems, updated);
+    setNewSubcats(prev => ({ ...prev, [cat.name]: "" }));
+    showToast(`"${t}" added to ${cat.name} ✓`);
+  };
+
+  const handleDeleteSubcat = (idx, subIdx) => {
+    const cat = categories[idx];
+    const subName = cat.subcategories[subIdx];
+    const inUse = budgetItems.filter(i => i.category === cat.name && i.subcategory === subName).length;
+    if (inUse > 0) {
+      showToast(`${inUse} items use this subcategory — reassign first`);
+      return;
+    }
+    const updated = categories.map((c, i) => i === idx ? { ...c, subcategories: c.subcategories.filter((_, si) => si !== subIdx) } : c);
+    setCategories(updated);
+    saveBudgetToCloud(budgetItems, updated);
+    showToast(`"${subName}" removed`);
+  };
+
   return (
     <div className="cat-manager" style={{marginTop: 40}}>
       <div className="top-bar">
         <h3 className="dashboard-section-title">Finance Categories</h3>
       </div>
-      <p className="cat-manager-hint">Click the colour swatch to change it · Click the name to rename · Categories with expenses can't be deleted.</p>
+      <p className="cat-manager-hint">Click the colour swatch to change it · Click the name to rename · Expand to manage subcategories</p>
       <div className="cat-manager-list">
         {categories.map((cat, idx) => {
           const inUse = budgetItems.filter(i => i.category === cat.name).length;
@@ -1381,8 +1436,36 @@ function FinanceCategoryManager({ categories, setCategories, budgetItems, showTo
                 <ColorPicker value={cat.color} onChange={color => handleRecolor(idx, color)} />
                 <input className="cat-name-input" defaultValue={cat.name} onBlur={e => handleRename(idx, e.target.value)} onKeyDown={e => e.key === "Enter" && e.target.blur()} />
                 <span className="cat-guest-count">{inUse} items</span>
+                <button className="btn btn-ghost btn-sm" onClick={()=>toggleExpand(cat.name)} style={{padding:"5px 10px", marginLeft:8, display:"flex", alignItems:"center", gap:4}}>
+                  {expandedCats[cat.name] ? "▲ Hide Subcategories" : "▼ Subcategories"}
+                </button>
                 <button className="cat-del-btn" disabled={inUse > 0} onClick={() => handleDelete(idx)} title={inUse > 0 ? "Reassign items first" : "Delete"}>✕</button>
               </div>
+              {expandedCats[cat.name] && (
+                <div className="cat-guests-expansion" style={{padding: '12px 16px', background: 'rgba(255,255,255,0.4)', borderRadius: 8, marginTop: 8}}>
+                  <div style={{fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 8}}>SUBCATEGORIES</div>
+                  <div style={{display:'flex', flexWrap:'wrap', gap: 8, marginBottom: 12}}>
+                    {(cat.subcategories || []).map((sub, sIdx) => (
+                      <div key={sub} style={{display:'flex', alignItems:'center', background:'#fff', border:'1px solid #ddd', padding:'4px 8px', borderRadius:16, fontSize:12}}>
+                        {sub}
+                        <button onClick={()=>handleDeleteSubcat(idx, sIdx)} style={{background:'none', border:'none', marginLeft:6, cursor:'pointer', color:'#999'}}>✕</button>
+                      </div>
+                    ))}
+                    {(!cat.subcategories || cat.subcategories.length === 0) && <span style={{fontSize: 12, color: '#999'}}>No subcategories yet.</span>}
+                  </div>
+                  <div style={{display:'flex', gap: 8}}>
+                    <input 
+                      className="form-input" 
+                      style={{padding: '4px 8px', fontSize: 12, height: 28, width: 200}} 
+                      placeholder="New subcategory..." 
+                      value={newSubcats[cat.name] || ""} 
+                      onChange={e => setNewSubcats(prev => ({...prev, [cat.name]: e.target.value}))}
+                      onKeyDown={e => e.key === "Enter" && handleAddSubcat(idx, newSubcats[cat.name] || "")}
+                    />
+                    <button className="btn btn-primary btn-sm" style={{height: 28, padding: '0 12px', fontSize: 12}} onClick={() => handleAddSubcat(idx, newSubcats[cat.name] || "")}>Add</button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -1397,33 +1480,66 @@ function FinanceCategoryManager({ categories, setCategories, budgetItems, showTo
 }
 
 function BudgetModal({ item, onClose, onSave, financeCategories }) {
+  // Migrate old data
+  let initialPayments = item?.payments || [];
+  if (initialPayments.length === 0) {
+    const oldB = item?.bridePaid ?? (item?.amountPaid || 0);
+    const oldG = item?.groomPaid || 0;
+    if (oldB > 0) initialPayments.push({ id: 'legacy-b', amount: oldB, payer: 'Bride', date: new Date().toISOString().split('T')[0] });
+    if (oldG > 0) initialPayments.push({ id: 'legacy-g', amount: oldG, payer: 'Groom', date: new Date().toISOString().split('T')[0] });
+  }
+
   const [form, setForm] = useState({
     id: item?.id || Date.now().toString(),
     description: item?.description || "",
     category: item?.category || (financeCategories.length > 0 ? financeCategories[0].name : ""),
-    totalAmount: item?.totalAmount || 0,
-    bridePaid: item?.bridePaid ?? (item?.amountPaid || 0),
-    groomPaid: item?.groomPaid || 0,
+    subcategory: item?.subcategory || "",
+    expectedBride: item?.expectedBride ?? (item?.totalAmount || 0),
+    expectedGroom: item?.expectedGroom || 0,
+    payments: initialPayments,
     notes: item?.notes || ""
   });
 
+  const [newPayment, setNewPayment] = useState({ amount: "", payer: "Bride", date: new Date().toISOString().split('T')[0] });
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const selectedCategoryObj = financeCategories.find(c => c.name === form.category);
+  const subcategories = selectedCategoryObj?.subcategories || [];
+
+  const handleCategoryChange = (newCat) => {
+    const catObj = financeCategories.find(c => c.name === newCat);
+    const firstSub = catObj?.subcategories?.[0] || "";
+    setForm(f => ({ ...f, category: newCat, subcategory: firstSub }));
+  };
+
+  const handleAddPayment = () => {
+    if (!newPayment.amount || Number(newPayment.amount) <= 0) return;
+    setForm(f => ({
+      ...f,
+      payments: [...f.payments, { ...newPayment, id: Date.now().toString(), amount: Number(newPayment.amount) }]
+    }));
+    setNewPayment({ amount: "", payer: "Bride", date: new Date().toISOString().split('T')[0] });
+  };
+
+  const handleRemovePayment = (id) => {
+    setForm(f => ({ ...f, payments: f.payments.filter(p => p.id !== id) }));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.description.trim()) return;
     onSave({
       ...form,
-      totalAmount: Number(form.totalAmount),
-      bridePaid: Number(form.bridePaid),
-      groomPaid: Number(form.groomPaid),
-      amountPaid: Number(form.bridePaid) + Number(form.groomPaid)
+      expectedBride: Number(form.expectedBride),
+      expectedGroom: Number(form.expectedGroom),
+      totalAmount: Number(form.expectedBride) + Number(form.expectedGroom)
     });
   };
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{maxWidth: 500}}>
         <div className="modal-header">
           <h3>{item ? "Edit Expense" : "Add Expense"}</h3>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -1433,27 +1549,76 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
             <label className="form-label">Description</label>
             <input className="form-input" value={form.description} onChange={e=>set("description", e.target.value)} placeholder="e.g. Venue" autoFocus />
           </div>
-          <div className="form-group">
-            <label className="form-label">Category</label>
-            <select className="form-input" value={form.category} onChange={e=>set("category", e.target.value)}>
-              <option value="">Uncategorized</option>
-              {financeCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Total Cost ($)</label>
-            <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
-          </div>
+          
           <div style={{display:'flex', gap:12}}>
             <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Bride Paid ($)</label>
-              <input className="form-input" type="number" min="0" value={form.bridePaid} onChange={e=>set("bridePaid", e.target.value)} />
+              <label className="form-label">Category</label>
+              <select className="form-input" value={form.category} onChange={e=>handleCategoryChange(e.target.value)}>
+                <option value="">Uncategorized</option>
+                {financeCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+              </select>
+            </div>
+            {subcategories.length > 0 && (
+              <div className="form-group" style={{flex:1}}>
+                <label className="form-label">Subcategory</label>
+                <select className="form-input" value={form.subcategory} onChange={e=>set("subcategory", e.target.value)}>
+                  <option value="">Select...</option>
+                  {subcategories.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div style={{display:'flex', gap:12}}>
+            <div className="form-group" style={{flex:1}}>
+              <label className="form-label">Expected from Bride ($)</label>
+              <input className="form-input" type="number" min="0" value={form.expectedBride} onChange={e=>set("expectedBride", e.target.value)} />
             </div>
             <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Groom Paid ($)</label>
-              <input className="form-input" type="number" min="0" value={form.groomPaid} onChange={e=>set("groomPaid", e.target.value)} />
+              <label className="form-label">Expected from Groom ($)</label>
+              <input className="form-input" type="number" min="0" value={form.expectedGroom} onChange={e=>set("expectedGroom", e.target.value)} />
             </div>
           </div>
+
+          <div className="form-group">
+            <label className="form-label">Payment History</label>
+            <div style={{background: '#f9f9f9', padding: 12, borderRadius: 8, border: '1px solid #eee'}}>
+              {form.payments.length === 0 ? (
+                <div style={{fontSize: 12, color: '#888', marginBottom: 12}}>No payments recorded yet.</div>
+              ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16}}>
+                  {form.payments.map(p => (
+                    <div key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff', padding:'8px 12px', borderRadius:6, border:'1px solid #ddd', fontSize:13}}>
+                      <div>
+                        <strong>${p.amount}</strong> by {p.payer} <span style={{color:'#888', fontSize:11, marginLeft:8}}>{p.date}</span>
+                      </div>
+                      <button type="button" onClick={()=>handleRemovePayment(p.id)} style={{background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:16}}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div style={{display:'flex', gap:8, alignItems:'flex-end'}}>
+                <div style={{flex:1}}>
+                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Amount ($)</label>
+                  <input className="form-input" type="number" min="0" style={{padding:'6px 8px'}} value={newPayment.amount} onChange={e=>setNewPayment({...newPayment, amount: e.target.value})} />
+                </div>
+                <div style={{flex:1}}>
+                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Payer</label>
+                  <select className="form-input" style={{padding:'6px 8px'}} value={newPayment.payer} onChange={e=>setNewPayment({...newPayment, payer: e.target.value})}>
+                    <option value="Bride">Bride</option>
+                    <option value="Groom">Groom</option>
+                  </select>
+                </div>
+                <div style={{flex:1.5}}>
+                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Date</label>
+                  <input className="form-input" type="date" style={{padding:'6px 8px'}} value={newPayment.date} onChange={e=>setNewPayment({...newPayment, date: e.target.value})} />
+                </div>
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleAddPayment}>Add</button>
+              </div>
+            </div>
+          </div>
+
           <div className="form-group">
             <label className="form-label">Notes (optional)</label>
             <input className="form-input" value={form.notes} onChange={e=>set("notes", e.target.value)} placeholder="e.g. Deposit paid on May 1st" />
