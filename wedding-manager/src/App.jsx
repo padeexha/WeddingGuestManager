@@ -1337,11 +1337,11 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
           </div>
           
           <div className="hero-metric" style={{gridColumn: '1 / -1', display: 'flex', gap: 20, background: 'rgba(255,255,255,0.08)', padding: '16px 20px', borderRadius: 12, marginTop: 12}}>
-            <div style={{flex: 1}}>
-              <div style={{fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 4}}>Bride Still Needs to Pay</div>
-              <div style={{fontSize: 24, fontWeight: 600, color: '#fbcfe8'}}>LKR {brideOwes.toLocaleString()}</div>
+            <div style={{flex: 1, background: 'rgba(244, 114, 182, 0.15)', padding: '12px 16px', borderRadius: 8, border: '1px solid rgba(244, 114, 182, 0.4)', boxShadow: '0 0 20px rgba(244, 114, 182, 0.2)'}}>
+              <div style={{fontSize: 11, fontWeight: 700, color: '#fbcfe8', textTransform: 'uppercase', marginBottom: 4}}>Bride Still Needs to Pay</div>
+              <div style={{fontSize: 26, fontWeight: 700, color: '#f472b6'}}>LKR {brideOwes.toLocaleString()}</div>
             </div>
-            <div style={{flex: 1}}>
+            <div style={{flex: 1, padding: '12px 16px'}}>
               <div style={{fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 4}}>Groom Still Needs to Pay</div>
               <div style={{fontSize: 24, fontWeight: 600, color: '#bfdbfe'}}>LKR {groomOwes.toLocaleString()}</div>
             </div>
