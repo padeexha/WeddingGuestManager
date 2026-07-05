@@ -1181,7 +1181,7 @@ function AuditLogsTab({ logs, loading }) {
   );
 }
 
-// ── Finance (Budget) Tab ──────────────────────────────────────────────────────
+// ── Finance (Expense) Tab ──────────────────────────────────────────────────────
 function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast, financeCategories, setFinanceCategories }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -1204,12 +1204,12 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
     }
     setBudgetItems(updatedItems);
     await saveBudgetToCloud(updatedItems);
-    showToast("Budget saved");
+    showToast("Expense saved");
     setIsModalOpen(false);
   };
 
   const handleDelete = async (id) => {
-    if(!window.confirm("Delete this budget item?")) return;
+    if(!window.confirm("Delete this expense?")) return;
     const updatedItems = budgetItems.filter(i => i.id !== id);
     setBudgetItems(updatedItems);
     await saveBudgetToCloud(updatedItems);
@@ -1219,11 +1219,11 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
   return (
     <div className="tab-container" style={{paddingBottom: 40}}>
       <div className="dashboard-kicker">Finance</div>
-      <h2>Budget Tracker</h2>
+      <h2>Expense Tracker</h2>
       
       <div className="hero-metrics" style={{marginTop:20, marginBottom:30}}>
         <div className="hero-metric-card">
-          <div className="hero-metric-label">Total Budget</div>
+          <div className="hero-metric-label">Total Expenses</div>
           <div className="hero-metric-value">${totalBudget.toLocaleString()}</div>
         </div>
         <div className="hero-metric-card">
@@ -1257,7 +1257,7 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
           </thead>
           <tbody>
             {budgetItems.length === 0 ? (
-              <tr><td colSpan="8" style={{textAlign:'center', padding:40, color:'#888'}}>No budget items yet.</td></tr>
+              <tr><td colSpan="8" style={{textAlign:'center', padding:40, color:'#888'}}>No expenses yet.</td></tr>
             ) : budgetItems.map(item => {
               const remaining = item.totalAmount - item.amountPaid;
               const status = remaining <= 0 ? "Paid" : item.amountPaid > 0 ? "Partial" : "Pending";
