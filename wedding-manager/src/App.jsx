@@ -1287,7 +1287,7 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
         item.description,
         catDisplay,
         split,
-        `LKR ${totalCost.toLocaleString()}`,
+        `LKR ${totalCost.toLocaleString()}${item.isCostEstimated ? ' (Est.)' : ''}`,
         `LKR ${bPaid.toLocaleString()}`,
         `LKR ${gPaid.toLocaleString()}`,
         `LKR ${remaining.toLocaleString()}`,
@@ -1415,7 +1415,10 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
                 <tr key={item.id}>
                   <td style={{fontWeight:600}}>{item.description}</td>
                   <td><span className="table-tag">{catDisplay}</span></td>
-                  <td style={{textAlign:'right'}}>LKR {Number(totalCost).toLocaleString()}</td>
+                  <td style={{textAlign:'right'}}>
+                    LKR {Number(totalCost).toLocaleString()}
+                    {item.isCostEstimated && <span style={{fontSize:10, color:'#f59e0b', marginLeft:4, fontWeight:'bold'}}>(Est.)</span>}
+                  </td>
                   <td style={{textAlign:'right', color:'#f472b6'}}>LKR {Number(bPaid).toLocaleString()}</td>
                   <td style={{textAlign:'right', color:'#60a5fa'}}>LKR {Number(gPaid).toLocaleString()}</td>
                   <td style={{textAlign:'right', color:'#f59e0b'}}>LKR {remaining.toLocaleString()}</td>
@@ -1611,6 +1614,7 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
     category: item?.category || (financeCategories.length > 0 ? financeCategories[0].name : ""),
     subcategory: item?.subcategory || "",
     totalAmount: item?.totalAmount || (item?.expectedBride || 0) + (item?.expectedGroom || 0),
+    isCostEstimated: item?.isCostEstimated || false,
     splitMode: item?.splitMode || "50/50",
     expectedBride: item?.expectedBride || 0,
     expectedGroom: item?.expectedGroom || 0,
@@ -1658,6 +1662,7 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
     onSave({
       ...form,
       totalAmount: t,
+      isCostEstimated: form.isCostEstimated,
       expectedBride: eb,
       expectedGroom: eg
     });
@@ -1699,6 +1704,10 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
             <div className="form-group" style={{flex:1}}>
               <label className="form-label">Total Cost (LKR)</label>
               <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
+              <label style={{display:'flex', alignItems:'center', gap:6, marginTop:8, fontSize:12, color:'#666', cursor:'pointer'}}>
+                <input type="checkbox" checked={form.isCostEstimated} onChange={e=>set("isCostEstimated", e.target.checked)} />
+                Cost is estimated / pending
+              </label>
             </div>
             <div className="form-group" style={{flex:1}}>
               <label className="form-label">Responsibility Split</label>
