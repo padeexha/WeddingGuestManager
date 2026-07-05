@@ -1185,6 +1185,7 @@ function AuditLogsTab({ logs, loading }) {
 function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast, financeCategories, setFinanceCategories }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [filter, setFilter] = useState('all');
   
   const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
   
@@ -1284,7 +1285,14 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
       </div>
 
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-        <h3 className="dashboard-section-title">Expenses</h3>
+        <div style={{display:'flex', alignItems:'center', gap: 16}}>
+          <h3 className="dashboard-section-title" style={{margin:0}}>Expenses</h3>
+          <select className="filter-select" value={filter} onChange={e => setFilter(e.target.value)}>
+            <option value="all">All Expenses</option>
+            <option value="bride">Bride's Expenses</option>
+            <option value="groom">Groom's Expenses</option>
+          </select>
+        </div>
         <button className="btn btn-primary" onClick={() => handleOpenModal()}>+ Add Expense</button>
       </div>
 
@@ -1304,9 +1312,26 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
             </tr>
           </thead>
           <tbody>
-            {budgetItems.length === 0 ? (
-              <tr><td colSpan="9" style={{textAlign:'center', padding:40, color:'#888'}}>No expenses yet.</td></tr>
-            ) : budgetItems.map(item => {
+            {(() => {
+              const filteredItems = budgetItems.filter(item => {
+                if (filter === 'all') return true;
+                
+                let bExpected = 0, gExpected = 0;
+                if (item.splitMode === 'bride') bExpected = item.totalAmount || 0;
+                else if (item.splitMode === 'groom') gExpected = item.totalAmount || 0;
+                else if (item.splitMode === 'custom') { bExpected = item.expectedBride || 0; gExpected = item.expectedGroom || 0; }
+                else { bExpected = (item.totalAmount || 0) / 2; gExpected = (item.totalAmount || 0) / 2; }
+                
+                if (filter === 'bride') return bExpected > 0;
+                if (filter === 'groom') return gExpected > 0;
+                return true;
+              });
+
+              if (filteredItems.length === 0) {
+                return <tr><td colSpan="9" style={{textAlign:'center', padding:40, color:'#888'}}>No expenses found.</td></tr>;
+              }
+
+              return filteredItems.map(item => {
               const bPaid = item.payments ? item.payments.filter(p => p.payer === 'Bride').reduce((s,p) => s + p.amount, 0) : (item.bridePaid ?? (item.amountPaid || 0));
               const gPaid = item.payments ? item.payments.filter(p => p.payer === 'Groom').reduce((s,p) => s + p.amount, 0) : (item.groomPaid || 0);
               const totalCost = item.totalAmount || 0;
@@ -1341,7 +1366,7 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
                   </td>
                 </tr>
               );
-            })}
+            })()}
           </tbody>
         </table>
       </div>
