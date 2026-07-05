@@ -1187,6 +1187,21 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
   const [editingItem, setEditingItem] = useState(null);
   
   const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
+  
+  const totalExpectedBride = budgetItems.reduce((acc, item) => {
+    if (item.splitMode === 'bride') return acc + (item.totalAmount || 0);
+    if (item.splitMode === 'groom') return acc;
+    if (item.splitMode === 'custom') return acc + (item.expectedBride || 0);
+    return acc + (item.totalAmount || 0) / 2; // Default 50/50
+  }, 0);
+
+  const totalExpectedGroom = budgetItems.reduce((acc, item) => {
+    if (item.splitMode === 'bride') return acc;
+    if (item.splitMode === 'groom') return acc + (item.totalAmount || 0);
+    if (item.splitMode === 'custom') return acc + (item.expectedGroom || 0);
+    return acc + (item.totalAmount || 0) / 2;
+  }, 0);
+
   const totalBridePaid = budgetItems.reduce((acc, item) => {
     if (item.payments) return acc + item.payments.filter(p => p.payer === 'Bride').reduce((s, p) => s + p.amount, 0);
     return acc + (item.bridePaid ?? (item.amountPaid || 0));
@@ -1195,6 +1210,10 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
     if (item.payments) return acc + item.payments.filter(p => p.payer === 'Groom').reduce((s, p) => s + p.amount, 0);
     return acc + (item.groomPaid || 0);
   }, 0);
+
+  const brideOwes = Math.max(0, totalExpectedBride - totalBridePaid);
+  const groomOwes = Math.max(0, totalExpectedGroom - totalGroomPaid);
+  
   const totalPaid = totalBridePaid + totalGroomPaid;
   const remainingBalance = totalBudget - totalPaid;
 
@@ -1236,19 +1255,30 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
         <div className="hero-metrics">
           <div className="hero-metric">
             <div className="hero-metric-label">Total Expenses</div>
-            <div className="hero-metric-value">${totalBudget.toLocaleString()}</div>
+            <div className="hero-metric-value">LKR {totalBudget.toLocaleString()}</div>
           </div>
           <div className="hero-metric">
             <div className="hero-metric-label">Bride Paid</div>
-            <div className="hero-metric-value" style={{color: '#f472b6'}}>${totalBridePaid.toLocaleString()}</div>
+            <div className="hero-metric-value" style={{color: '#f472b6'}}>LKR {totalBridePaid.toLocaleString()}</div>
           </div>
           <div className="hero-metric">
             <div className="hero-metric-label">Groom Paid</div>
-            <div className="hero-metric-value" style={{color: '#60a5fa'}}>${totalGroomPaid.toLocaleString()}</div>
+            <div className="hero-metric-value" style={{color: '#60a5fa'}}>LKR {totalGroomPaid.toLocaleString()}</div>
           </div>
           <div className="hero-metric">
             <div className="hero-metric-label">Remaining Balance</div>
-            <div className="hero-metric-value" style={{color: '#f59e0b'}}>${remainingBalance.toLocaleString()}</div>
+            <div className="hero-metric-value" style={{color: '#f59e0b'}}>LKR {remainingBalance.toLocaleString()}</div>
+          </div>
+          
+          <div className="hero-metric" style={{gridColumn: '1 / -1', display: 'flex', gap: 20, background: 'rgba(255,255,255,0.08)', padding: '16px 20px', borderRadius: 12, marginTop: 12}}>
+            <div style={{flex: 1}}>
+              <div style={{fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 4}}>Bride Still Needs to Pay</div>
+              <div style={{fontSize: 24, fontWeight: 600, color: '#fbcfe8'}}>LKR {brideOwes.toLocaleString()}</div>
+            </div>
+            <div style={{flex: 1}}>
+              <div style={{fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 4}}>Groom Still Needs to Pay</div>
+              <div style={{fontSize: 24, fontWeight: 600, color: '#bfdbfe'}}>LKR {groomOwes.toLocaleString()}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1292,10 +1322,10 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
                 <tr key={item.id}>
                   <td style={{fontWeight:600}}>{item.description}</td>
                   <td><span className="table-tag">{catDisplay}</span></td>
-                  <td style={{textAlign:'right'}}>${Number(totalCost).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#f472b6'}}>${Number(bPaid).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#60a5fa'}}>${Number(gPaid).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#f59e0b'}}>${remaining.toLocaleString()}</td>
+                  <td style={{textAlign:'right'}}>LKR {Number(totalCost).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#f472b6'}}>LKR {Number(bPaid).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#60a5fa'}}>LKR {Number(gPaid).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#f59e0b'}}>LKR {remaining.toLocaleString()}</td>
                   <td>
                     <span style={{
                       display:'inline-block', padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:600,
@@ -1487,6 +1517,9 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
     category: item?.category || (financeCategories.length > 0 ? financeCategories[0].name : ""),
     subcategory: item?.subcategory || "",
     totalAmount: item?.totalAmount || (item?.expectedBride || 0) + (item?.expectedGroom || 0),
+    splitMode: item?.splitMode || "50/50",
+    expectedBride: item?.expectedBride || 0,
+    expectedGroom: item?.expectedGroom || 0,
     payments: initialPayments,
     notes: item?.notes || ""
   });
@@ -1520,9 +1553,19 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.description.trim()) return;
+    
+    const t = Number(form.totalAmount);
+    let eb = 0, eg = 0;
+    if (form.splitMode === "50/50") { eb = t/2; eg = t/2; }
+    else if (form.splitMode === "bride") { eb = t; eg = 0; }
+    else if (form.splitMode === "groom") { eb = 0; eg = t; }
+    else if (form.splitMode === "custom") { eb = Number(form.expectedBride); eg = Number(form.expectedGroom); }
+    
     onSave({
       ...form,
-      totalAmount: Number(form.totalAmount)
+      totalAmount: t,
+      expectedBride: eb,
+      expectedGroom: eg
     });
   };
 
@@ -1558,10 +1601,34 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
             )}
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Total Cost ($)</label>
-            <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
+          <div style={{display:'flex', gap:12}}>
+            <div className="form-group" style={{flex:1}}>
+              <label className="form-label">Total Cost (LKR)</label>
+              <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
+            </div>
+            <div className="form-group" style={{flex:1}}>
+              <label className="form-label">Responsibility Split</label>
+              <select className="form-input" value={form.splitMode} onChange={e=>set("splitMode", e.target.value)}>
+                <option value="50/50">50/50 Split</option>
+                <option value="bride">100% Bride</option>
+                <option value="groom">100% Groom</option>
+                <option value="custom">Custom...</option>
+              </select>
+            </div>
           </div>
+
+          {form.splitMode === 'custom' && (
+            <div style={{display:'flex', gap:12, marginBottom:16}}>
+              <div className="form-group" style={{flex:1, marginBottom:0}}>
+                <label className="form-label">Expected from Bride (LKR)</label>
+                <input className="form-input" type="number" min="0" value={form.expectedBride} onChange={e=>set("expectedBride", e.target.value)} />
+              </div>
+              <div className="form-group" style={{flex:1, marginBottom:0}}>
+                <label className="form-label">Expected from Groom (LKR)</label>
+                <input className="form-input" type="number" min="0" value={form.expectedGroom} onChange={e=>set("expectedGroom", e.target.value)} />
+              </div>
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Payment History</label>
@@ -1573,7 +1640,7 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
                   {form.payments.map(p => (
                     <div key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff', padding:'8px 12px', borderRadius:6, border:'1px solid #ddd', fontSize:13}}>
                       <div>
-                        <strong>${p.amount}</strong> by {p.payer} <span style={{color:'#888', fontSize:11, marginLeft:8}}>{p.date}</span>
+                        <strong>LKR {p.amount}</strong> by {p.payer} <span style={{color:'#888', fontSize:11, marginLeft:8}}>{p.date}</span>
                       </div>
                       <button type="button" onClick={()=>handleRemovePayment(p.id)} style={{background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:16}}>×</button>
                     </div>
@@ -1583,7 +1650,7 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
               
               <div style={{display:'flex', gap:8, alignItems:'flex-end'}}>
                 <div style={{flex:1}}>
-                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Amount ($)</label>
+                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Amount (LKR)</label>
                   <input className="form-input" type="number" min="0" style={{padding:'6px 8px'}} value={newPayment.amount} onChange={e=>setNewPayment({...newPayment, amount: e.target.value})} />
                 </div>
                 <div style={{flex:1}}>
