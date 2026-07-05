@@ -1218,21 +1218,26 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
 
   return (
     <div className="tab-container" style={{paddingBottom: 40}}>
-      <div className="dashboard-kicker">Finance</div>
-      <h2>Expense Tracker</h2>
-      
-      <div className="hero-metrics" style={{marginTop:20, marginBottom:30}}>
-        <div className="hero-metric-card">
-          <div className="hero-metric-label">Total Expenses</div>
-          <div className="hero-metric-value">${totalBudget.toLocaleString()}</div>
+      <div className="dashboard-hero" style={{marginBottom: 40}}>
+        <div>
+          <div className="dashboard-kicker">Finance</div>
+          <h2>Expense Tracker</h2>
+          <p>Manage your wedding expenses, track what's paid, and keep an eye on your remaining balances.</p>
         </div>
-        <div className="hero-metric-card">
-          <div className="hero-metric-label">Total Paid</div>
-          <div className="hero-metric-value" style={{color: '#10b981'}}>${totalPaid.toLocaleString()}</div>
-        </div>
-        <div className="hero-metric-card">
-          <div className="hero-metric-label">Remaining Balance</div>
-          <div className="hero-metric-value" style={{color: '#f59e0b'}}>${remainingBalance.toLocaleString()}</div>
+        
+        <div className="hero-metrics">
+          <div className="hero-metric">
+            <div className="hero-metric-label">Total Expenses</div>
+            <div className="hero-metric-value">${totalBudget.toLocaleString()}</div>
+          </div>
+          <div className="hero-metric">
+            <div className="hero-metric-label">Total Paid</div>
+            <div className="hero-metric-value" style={{color: '#10b981'}}>${totalPaid.toLocaleString()}</div>
+          </div>
+          <div className="hero-metric">
+            <div className="hero-metric-label">Remaining Balance</div>
+            <div className="hero-metric-value" style={{color: '#f59e0b'}}>${remainingBalance.toLocaleString()}</div>
+          </div>
         </div>
       </div>
 
