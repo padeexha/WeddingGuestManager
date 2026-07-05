@@ -52,6 +52,15 @@ const DEFAULT_CATEGORIES = [
   { name:"Thulani's Invites",  color:"#7AAA8F" },
 ];
 
+const DEFAULT_FINANCE_CATEGORIES = [
+  { name: "Venue", color: "#A0547A" },
+  { name: "Catering", color: "#7A6BAA" },
+  { name: "Photography", color: "#6A8FAA" },
+  { name: "Attire", color: "#AA7A6A" },
+  { name: "Decorations", color: "#7AAA8F" },
+  { name: "Other", color: "#B07A54" },
+];
+
 // Canonical categories & guests restored from PDF exports (9 Jun 2026)
 const RESTORED_CATEGORIES = [
   { name:"Neighbours",           color:"#6A8FAA" },
@@ -1172,10 +1181,276 @@ function AuditLogsTab({ logs, loading }) {
   );
 }
 
+// ── Finance (Budget) Tab ──────────────────────────────────────────────────────
+function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast, financeCategories, setFinanceCategories }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  
+  const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
+  const totalPaid = budgetItems.reduce((acc, item) => acc + (item.amountPaid || 0), 0);
+  const remainingBalance = totalBudget - totalPaid;
+
+  const handleOpenModal = (item = null) => {
+    setEditingItem(item);
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (newItem) => {
+    let updatedItems;
+    if (editingItem) {
+      updatedItems = budgetItems.map(i => i.id === newItem.id ? newItem : i);
+    } else {
+      updatedItems = [...budgetItems, newItem];
+    }
+    setBudgetItems(updatedItems);
+    await saveBudgetToCloud(updatedItems);
+    showToast("Budget saved");
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = async (id) => {
+    if(!window.confirm("Delete this budget item?")) return;
+    const updatedItems = budgetItems.filter(i => i.id !== id);
+    setBudgetItems(updatedItems);
+    await saveBudgetToCloud(updatedItems);
+    showToast("Item deleted");
+  };
+
+  return (
+    <div className="tab-container" style={{paddingBottom: 40}}>
+      <div className="dashboard-kicker">Finance</div>
+      <h2>Budget Tracker</h2>
+      
+      <div className="hero-metrics" style={{marginTop:20, marginBottom:30}}>
+        <div className="hero-metric-card">
+          <div className="hero-metric-label">Total Budget</div>
+          <div className="hero-metric-value">${totalBudget.toLocaleString()}</div>
+        </div>
+        <div className="hero-metric-card">
+          <div className="hero-metric-label">Total Paid</div>
+          <div className="hero-metric-value" style={{color: '#10b981'}}>${totalPaid.toLocaleString()}</div>
+        </div>
+        <div className="hero-metric-card">
+          <div className="hero-metric-label">Remaining Balance</div>
+          <div className="hero-metric-value" style={{color: '#f59e0b'}}>${remainingBalance.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+        <h3 className="dashboard-section-title">Expenses</h3>
+        <button className="btn btn-primary" onClick={() => handleOpenModal()}>+ Add Expense</button>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Category</th>
+              <th style={{textAlign:'right'}}>Total Cost</th>
+              <th style={{textAlign:'right'}}>Amount Paid</th>
+              <th style={{textAlign:'right'}}>Remaining</th>
+              <th>Status</th>
+              <th>Notes</th>
+              <th style={{width: 80}}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {budgetItems.length === 0 ? (
+              <tr><td colSpan="8" style={{textAlign:'center', padding:40, color:'#888'}}>No budget items yet.</td></tr>
+            ) : budgetItems.map(item => {
+              const remaining = item.totalAmount - item.amountPaid;
+              const status = remaining <= 0 ? "Paid" : item.amountPaid > 0 ? "Partial" : "Pending";
+              const statusColor = status === "Paid" ? "#10b981" : status === "Partial" ? "#f59e0b" : "#ef4444";
+              return (
+                <tr key={item.id}>
+                  <td style={{fontWeight:600}}>{item.description}</td>
+                  <td><span className="table-tag">{item.category || "Uncategorized"}</span></td>
+                  <td style={{textAlign:'right'}}>${Number(item.totalAmount).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#10b981'}}>${Number(item.amountPaid).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#f59e0b'}}>${remaining.toLocaleString()}</td>
+                  <td>
+                    <span style={{
+                      display:'inline-block', padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:600,
+                      backgroundColor: `${statusColor}22`, color: statusColor
+                    }}>
+                      {status}
+                    </span>
+                  </td>
+                  <td style={{fontSize: 12, color: '#888'}}>{item.notes}</td>
+                  <td style={{textAlign:'right'}}>
+                    <button className="action-btn" onClick={()=>handleOpenModal(item)}>Edit</button>
+                    <button className="action-btn" style={{color:'#ef4444', marginLeft:8}} onClick={()=>handleDelete(item.id)}>Del</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {isModalOpen && <BudgetModal item={editingItem} onClose={()=>setIsModalOpen(false)} onSave={handleSave} financeCategories={financeCategories} />}
+      
+      <FinanceCategoryManager 
+        categories={financeCategories} 
+        setCategories={setFinanceCategories} 
+        budgetItems={budgetItems} 
+        showToast={showToast} 
+        saveBudgetToCloud={saveBudgetToCloud} 
+      />
+    </div>
+  );
+}
+
+function FinanceCategoryManager({ categories, setCategories, budgetItems, showToast, saveBudgetToCloud }) {
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState(PALETTE[5]);
+
+  const handleRename = (idx, name) => {
+    const old = categories[idx].name;
+    const next = name.trim();
+    if (!next || next === old) return;
+    const updated = categories.map((c, i) => i === idx ? { ...c, name: next } : c);
+    setCategories(updated);
+    saveBudgetToCloud(budgetItems, updated);
+    showToast(`Renamed to "${next}" ✓`);
+  };
+
+  const handleRecolor = (idx, color) => {
+    const updated = categories.map((c, i) => i === idx ? { ...c, color } : c);
+    setCategories(updated);
+    saveBudgetToCloud(budgetItems, updated);
+  };
+
+  const handleAdd = () => {
+    const t = newName.trim();
+    if (!t) return;
+    if (categories.find(c => c.name.toLowerCase() === t.toLowerCase())) {
+      showToast("Already exists");
+      return;
+    }
+    const updated = [...categories, { name: t, color: newColor }];
+    setCategories(updated);
+    saveBudgetToCloud(budgetItems, updated);
+    setNewName("");
+    setNewColor(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
+    showToast(`"${t}" added ✓`);
+  };
+
+  const handleDelete = (idx) => {
+    const cat = categories[idx];
+    const inUse = budgetItems.filter(i => i.category === cat.name).length;
+    if (inUse > 0) {
+      showToast(`${inUse} items in this category — reassign first`);
+      return;
+    }
+    const updated = categories.filter((_, i) => i !== idx);
+    setCategories(updated);
+    saveBudgetToCloud(budgetItems, updated);
+    showToast(`"${cat.name}" removed`);
+  };
+
+  return (
+    <div className="cat-manager" style={{marginTop: 40}}>
+      <div className="top-bar">
+        <h3 className="dashboard-section-title">Finance Categories</h3>
+      </div>
+      <p className="cat-manager-hint">Click the colour swatch to change it · Click the name to rename · Categories with expenses can't be deleted.</p>
+      <div className="cat-manager-list">
+        {categories.map((cat, idx) => {
+          const inUse = budgetItems.filter(i => i.category === cat.name).length;
+          return (
+            <div className="cat-manager-item" key={cat.name + idx}>
+              <div className="cat-manager-row">
+                <ColorPicker value={cat.color} onChange={color => handleRecolor(idx, color)} />
+                <input className="cat-name-input" defaultValue={cat.name} onBlur={e => handleRename(idx, e.target.value)} onKeyDown={e => e.key === "Enter" && e.target.blur()} />
+                <span className="cat-guest-count">{inUse} items</span>
+                <button className="cat-del-btn" disabled={inUse > 0} onClick={() => handleDelete(idx)} title={inUse > 0 ? "Reassign items first" : "Delete"}>✕</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="cat-add-row" style={{marginTop:16}}>
+        <ColorPicker value={newColor} onChange={setNewColor} />
+        <input className="cat-add-input" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAdd()} placeholder="New category name..." />
+        <button className="btn btn-primary btn-sm" onClick={handleAdd} disabled={!newName.trim()}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+function BudgetModal({ item, onClose, onSave, financeCategories }) {
+  const [form, setForm] = useState({
+    id: item?.id || Date.now().toString(),
+    description: item?.description || "",
+    category: item?.category || (financeCategories.length > 0 ? financeCategories[0].name : ""),
+    totalAmount: item?.totalAmount || 0,
+    amountPaid: item?.amountPaid || 0,
+    notes: item?.notes || ""
+  });
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.description.trim()) return;
+    onSave({
+      ...form,
+      totalAmount: Number(form.totalAmount),
+      amountPaid: Number(form.amountPaid)
+    });
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-header">
+          <h3>{item ? "Edit Expense" : "Add Expense"}</h3>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <form className="modal-body" onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Description</label>
+            <input className="form-input" value={form.description} onChange={e=>set("description", e.target.value)} placeholder="e.g. Venue" autoFocus />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Category</label>
+            <select className="form-input" value={form.category} onChange={e=>set("category", e.target.value)}>
+              <option value="">Uncategorized</option>
+              {financeCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+            </select>
+          </div>
+          <div style={{display:'flex', gap:12}}>
+            <div className="form-group" style={{flex:1}}>
+              <label className="form-label">Total Cost ($)</label>
+              <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
+            </div>
+            <div className="form-group" style={{flex:1}}>
+              <label className="form-label">Amount Paid ($)</label>
+              <input className="form-input" type="number" min="0" value={form.amountPaid} onChange={e=>set("amountPaid", e.target.value)} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Notes (optional)</label>
+            <input className="form-input" value={form.notes} onChange={e=>set("notes", e.target.value)} placeholder="e.g. Deposit paid on May 1st" />
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={!form.description.trim()}>Save Expense</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── App root ──────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [guests,setGuests]=useState([]);
+  const [budgetItems,setBudgetItems]=useState([]);
+  const [financeCategories,setFinanceCategories]=useState(DEFAULT_FINANCE_CATEGORIES);
   const [categories,setCategories]=useState(DEFAULT_CATEGORIES);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("dashboard");
@@ -1249,7 +1524,22 @@ export default function App() {
         }
       );
 
-      return () => unsubGuests();
+      const unsubBudget = onSnapshot(
+        doc(db, "wedding", "budget"),
+        async (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            setBudgetItems(data.items || []);
+            setFinanceCategories(data.categories || DEFAULT_FINANCE_CATEGORIES);
+          } else {
+            await setDoc(doc(db, "wedding", "budget"), { items: [], categories: DEFAULT_FINANCE_CATEGORIES });
+            setBudgetItems([]);
+            setFinanceCategories(DEFAULT_FINANCE_CATEGORIES);
+          }
+        }
+      );
+
+      return () => { unsubGuests(); unsubBudget(); };
     });
 
     const t = setTimeout(()=>setSplash(false), 2200);
@@ -1288,6 +1578,15 @@ export default function App() {
         doc(db, "wedding", "guests"),
         { guests: updatedGuests, categories: updatedCategories }
       );
+    } catch (err) {
+      showToast("⚠ Save failed — check connection");
+      throw err;
+    }
+  };
+
+  const saveBudgetToCloud = async (updatedItems, updatedCategories = financeCategories) => {
+    try {
+      await setDoc(doc(db, "wedding", "budget"), { items: updatedItems, categories: updatedCategories });
     } catch (err) {
       showToast("⚠ Save failed — check connection");
       throw err;
@@ -2127,6 +2426,7 @@ export default function App() {
             <button className={`nav-btn${view==="guests"?" active":""}`} onClick={()=>setView("guests")}>Guest List<span className="nav-count">{guests.length}</span></button>
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
+            <button className={`nav-btn${view==="finance"?" active":""}`} onClick={()=>setView("finance")}>Finance</button>
             {isAdmin&&<button className={`nav-btn${view==="audit"?" active":""}`} onClick={()=>setView("audit")}>Audit<span className="nav-count">{auditLogs.length}</span></button>}
           </nav>
           <div style={{display:"flex",gap:8,flexShrink:0}}>
@@ -2255,6 +2555,7 @@ export default function App() {
 
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
           {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast} downloadCategoriesBreakdownPDF={downloadCategoriesBreakdownPDF}/>}
+          {view==="finance"&&<FinanceTab budgetItems={budgetItems} setBudgetItems={setBudgetItems} saveBudgetToCloud={saveBudgetToCloud} showToast={showToast} financeCategories={financeCategories} setFinanceCategories={setFinanceCategories} />}
           {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>
