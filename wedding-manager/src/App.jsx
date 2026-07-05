@@ -1434,6 +1434,7 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
                   </td>
                 </tr>
               );
+            });
             })()}
           </tbody>
         </table>
