@@ -1186,7 +1186,7 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   
-  const totalBudget = budgetItems.reduce((acc, item) => acc + (item.expectedBride || 0) + (item.expectedGroom || 0) + (item.totalAmount && !item.expectedBride && !item.expectedGroom ? item.totalAmount : 0), 0);
+  const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
   const totalBridePaid = budgetItems.reduce((acc, item) => {
     if (item.payments) return acc + item.payments.filter(p => p.payer === 'Bride').reduce((s, p) => s + p.amount, 0);
     return acc + (item.bridePaid ?? (item.amountPaid || 0));
@@ -1279,12 +1279,10 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
             ) : budgetItems.map(item => {
               const bPaid = item.payments ? item.payments.filter(p => p.payer === 'Bride').reduce((s,p) => s + p.amount, 0) : (item.bridePaid ?? (item.amountPaid || 0));
               const gPaid = item.payments ? item.payments.filter(p => p.payer === 'Groom').reduce((s,p) => s + p.amount, 0) : (item.groomPaid || 0);
-              const bExpected = item.expectedBride ?? (item.totalAmount || 0);
-              const gExpected = item.expectedGroom || 0;
-              const totalExpected = bExpected + gExpected;
+              const totalCost = item.totalAmount || 0;
               
               const tPaid = bPaid + gPaid;
-              const remaining = totalExpected - tPaid;
+              const remaining = totalCost - tPaid;
               const status = remaining <= 0 ? "Paid" : tPaid > 0 ? "Partial" : "Pending";
               const statusColor = status === "Paid" ? "#10b981" : status === "Partial" ? "#f59e0b" : "#ef4444";
               
@@ -1294,15 +1292,9 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
                 <tr key={item.id}>
                   <td style={{fontWeight:600}}>{item.description}</td>
                   <td><span className="table-tag">{catDisplay}</span></td>
-                  <td style={{textAlign:'right'}}>${Number(totalExpected).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#f472b6'}}>
-                    ${Number(bPaid).toLocaleString()}
-                    <span style={{fontSize:10, color:'#888', display:'block'}}>exp: ${Number(bExpected).toLocaleString()}</span>
-                  </td>
-                  <td style={{textAlign:'right', color:'#60a5fa'}}>
-                    ${Number(gPaid).toLocaleString()}
-                    <span style={{fontSize:10, color:'#888', display:'block'}}>exp: ${Number(gExpected).toLocaleString()}</span>
-                  </td>
+                  <td style={{textAlign:'right'}}>${Number(totalCost).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#f472b6'}}>${Number(bPaid).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#60a5fa'}}>${Number(gPaid).toLocaleString()}</td>
                   <td style={{textAlign:'right', color:'#f59e0b'}}>${remaining.toLocaleString()}</td>
                   <td>
                     <span style={{
@@ -1494,8 +1486,7 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
     description: item?.description || "",
     category: item?.category || (financeCategories.length > 0 ? financeCategories[0].name : ""),
     subcategory: item?.subcategory || "",
-    expectedBride: item?.expectedBride ?? (item?.totalAmount || 0),
-    expectedGroom: item?.expectedGroom || 0,
+    totalAmount: item?.totalAmount || (item?.expectedBride || 0) + (item?.expectedGroom || 0),
     payments: initialPayments,
     notes: item?.notes || ""
   });
@@ -1531,9 +1522,7 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
     if (!form.description.trim()) return;
     onSave({
       ...form,
-      expectedBride: Number(form.expectedBride),
-      expectedGroom: Number(form.expectedGroom),
-      totalAmount: Number(form.expectedBride) + Number(form.expectedGroom)
+      totalAmount: Number(form.totalAmount)
     });
   };
 
@@ -1569,15 +1558,9 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
             )}
           </div>
 
-          <div style={{display:'flex', gap:12}}>
-            <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Expected from Bride ($)</label>
-              <input className="form-input" type="number" min="0" value={form.expectedBride} onChange={e=>set("expectedBride", e.target.value)} />
-            </div>
-            <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Expected from Groom ($)</label>
-              <input className="form-input" type="number" min="0" value={form.expectedGroom} onChange={e=>set("expectedGroom", e.target.value)} />
-            </div>
+          <div className="form-group">
+            <label className="form-label">Total Cost ($)</label>
+            <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
           </div>
 
           <div className="form-group">
