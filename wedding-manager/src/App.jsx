@@ -1244,6 +1244,71 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
     showToast("Item deleted");
   };
 
+  const downloadFinancePDF = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const dateStr = new Date().toISOString().split('T')[0];
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(92, 40, 64);
+    doc.text("Wedding Expenses Report", 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on ${dateStr}`, 14, 29);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Total Expenses: LKR ${totalBudget.toLocaleString()}`, 14, 40);
+    doc.text(`Remaining Balance: LKR ${remainingBalance.toLocaleString()}`, 14, 46);
+    
+    doc.text(`Bride Paid: LKR ${totalBridePaid.toLocaleString()}`, 100, 40);
+    doc.text(`Bride Needs to Pay: LKR ${brideOwes.toLocaleString()}`, 100, 46);
+    
+    doc.text(`Groom Paid: LKR ${totalGroomPaid.toLocaleString()}`, 180, 40);
+    doc.text(`Groom Needs to Pay: LKR ${groomOwes.toLocaleString()}`, 180, 46);
+    
+    const tableCols = ["Description", "Category", "Responsibility", "Total Cost", "Bride Paid", "Groom Paid", "Remaining", "Status"];
+    const tableRows = budgetItems.map(item => {
+      const bPaid = item.payments ? item.payments.filter(p => p.payer === 'Bride').reduce((s,p) => s + p.amount, 0) : (item.bridePaid ?? (item.amountPaid || 0));
+      const gPaid = item.payments ? item.payments.filter(p => p.payer === 'Groom').reduce((s,p) => s + p.amount, 0) : (item.groomPaid || 0);
+      const totalCost = item.totalAmount || 0;
+      const tPaid = bPaid + gPaid;
+      const remaining = totalCost - tPaid;
+      const status = remaining <= 0 ? "Paid" : tPaid > 0 ? "Partial" : "Pending";
+      const catDisplay = item.subcategory ? `${item.category} > ${item.subcategory}` : (item.category || "Uncategorized");
+      let split = "50/50";
+      if (item.splitMode === 'bride') split = "100% Bride";
+      else if (item.splitMode === 'groom') split = "100% Groom";
+      else if (item.splitMode === 'custom') split = "Custom";
+      
+      return [
+        item.description,
+        catDisplay,
+        split,
+        `LKR ${totalCost.toLocaleString()}`,
+        `LKR ${bPaid.toLocaleString()}`,
+        `LKR ${gPaid.toLocaleString()}`,
+        `LKR ${remaining.toLocaleString()}`,
+        status
+      ];
+    });
+    
+    autoTable(doc, {
+      head: [tableCols],
+      body: tableRows,
+      startY: 55,
+      theme: 'grid',
+      headStyles: { fillColor: [92, 40, 64], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 4 },
+      alternateRowStyles: { fillColor: [250, 246, 248] },
+    });
+    
+    doc.save(`Finance_Report_${dateStr}.pdf`);
+    showToast("Finance report PDF downloaded ✓");
+  };
+
   return (
     <div className="tab-container" style={{paddingBottom: 40}}>
       <div className="dashboard-hero" style={{marginBottom: 40}}>
@@ -1293,7 +1358,10 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
             <option value="groom">Groom's Expenses</option>
           </select>
         </div>
-        <button className="btn btn-primary" onClick={() => handleOpenModal()}>+ Add Expense</button>
+        <div style={{display:'flex', gap: 12}}>
+          <button className="btn btn-secondary" onClick={downloadFinancePDF}>⬇ Export PDF</button>
+          <button className="btn btn-primary" onClick={() => handleOpenModal()}>+ Add Expense</button>
+        </div>
       </div>
 
       <div className="table-wrap">
