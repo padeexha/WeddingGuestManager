@@ -1187,7 +1187,9 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
   const [editingItem, setEditingItem] = useState(null);
   
   const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
-  const totalPaid = budgetItems.reduce((acc, item) => acc + (item.amountPaid || 0), 0);
+  const totalBridePaid = budgetItems.reduce((acc, item) => acc + (item.bridePaid ?? (item.amountPaid || 0)), 0);
+  const totalGroomPaid = budgetItems.reduce((acc, item) => acc + (item.groomPaid || 0), 0);
+  const totalPaid = totalBridePaid + totalGroomPaid;
   const remainingBalance = totalBudget - totalPaid;
 
   const handleOpenModal = (item = null) => {
@@ -1231,8 +1233,12 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
             <div className="hero-metric-value">${totalBudget.toLocaleString()}</div>
           </div>
           <div className="hero-metric">
-            <div className="hero-metric-label">Total Paid</div>
-            <div className="hero-metric-value" style={{color: '#10b981'}}>${totalPaid.toLocaleString()}</div>
+            <div className="hero-metric-label">Bride Paid</div>
+            <div className="hero-metric-value" style={{color: '#f472b6'}}>${totalBridePaid.toLocaleString()}</div>
+          </div>
+          <div className="hero-metric">
+            <div className="hero-metric-label">Groom Paid</div>
+            <div className="hero-metric-value" style={{color: '#60a5fa'}}>${totalGroomPaid.toLocaleString()}</div>
           </div>
           <div className="hero-metric">
             <div className="hero-metric-label">Remaining Balance</div>
@@ -1253,7 +1259,8 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
               <th>Description</th>
               <th>Category</th>
               <th style={{textAlign:'right'}}>Total Cost</th>
-              <th style={{textAlign:'right'}}>Amount Paid</th>
+              <th style={{textAlign:'right'}}>Bride Paid</th>
+              <th style={{textAlign:'right'}}>Groom Paid</th>
               <th style={{textAlign:'right'}}>Remaining</th>
               <th>Status</th>
               <th>Notes</th>
@@ -1262,17 +1269,21 @@ function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast,
           </thead>
           <tbody>
             {budgetItems.length === 0 ? (
-              <tr><td colSpan="8" style={{textAlign:'center', padding:40, color:'#888'}}>No expenses yet.</td></tr>
+              <tr><td colSpan="9" style={{textAlign:'center', padding:40, color:'#888'}}>No expenses yet.</td></tr>
             ) : budgetItems.map(item => {
-              const remaining = item.totalAmount - item.amountPaid;
-              const status = remaining <= 0 ? "Paid" : item.amountPaid > 0 ? "Partial" : "Pending";
+              const bPaid = item.bridePaid ?? (item.amountPaid || 0);
+              const gPaid = item.groomPaid || 0;
+              const tPaid = bPaid + gPaid;
+              const remaining = item.totalAmount - tPaid;
+              const status = remaining <= 0 ? "Paid" : tPaid > 0 ? "Partial" : "Pending";
               const statusColor = status === "Paid" ? "#10b981" : status === "Partial" ? "#f59e0b" : "#ef4444";
               return (
                 <tr key={item.id}>
                   <td style={{fontWeight:600}}>{item.description}</td>
                   <td><span className="table-tag">{item.category || "Uncategorized"}</span></td>
                   <td style={{textAlign:'right'}}>${Number(item.totalAmount).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#10b981'}}>${Number(item.amountPaid).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#f472b6'}}>${Number(bPaid).toLocaleString()}</td>
+                  <td style={{textAlign:'right', color:'#60a5fa'}}>${Number(gPaid).toLocaleString()}</td>
                   <td style={{textAlign:'right', color:'#f59e0b'}}>${remaining.toLocaleString()}</td>
                   <td>
                     <span style={{
@@ -1391,7 +1402,8 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
     description: item?.description || "",
     category: item?.category || (financeCategories.length > 0 ? financeCategories[0].name : ""),
     totalAmount: item?.totalAmount || 0,
-    amountPaid: item?.amountPaid || 0,
+    bridePaid: item?.bridePaid ?? (item?.amountPaid || 0),
+    groomPaid: item?.groomPaid || 0,
     notes: item?.notes || ""
   });
 
@@ -1403,7 +1415,9 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
     onSave({
       ...form,
       totalAmount: Number(form.totalAmount),
-      amountPaid: Number(form.amountPaid)
+      bridePaid: Number(form.bridePaid),
+      groomPaid: Number(form.groomPaid),
+      amountPaid: Number(form.bridePaid) + Number(form.groomPaid)
     });
   };
 
@@ -1426,14 +1440,18 @@ function BudgetModal({ item, onClose, onSave, financeCategories }) {
               {financeCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
             </select>
           </div>
+          <div className="form-group">
+            <label className="form-label">Total Cost ($)</label>
+            <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
+          </div>
           <div style={{display:'flex', gap:12}}>
             <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Total Cost ($)</label>
-              <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
+              <label className="form-label">Bride Paid ($)</label>
+              <input className="form-input" type="number" min="0" value={form.bridePaid} onChange={e=>set("bridePaid", e.target.value)} />
             </div>
             <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Amount Paid ($)</label>
-              <input className="form-input" type="number" min="0" value={form.amountPaid} onChange={e=>set("amountPaid", e.target.value)} />
+              <label className="form-label">Groom Paid ($)</label>
+              <input className="form-input" type="number" min="0" value={form.groomPaid} onChange={e=>set("groomPaid", e.target.value)} />
             </div>
           </div>
           <div className="form-group">
