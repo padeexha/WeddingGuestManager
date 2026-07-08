@@ -944,7 +944,7 @@ function GuestModal({ guest, categories, onClose, onSave }) {
   const hasP=form.attendingCount!==null;
   const attN=hasP?Math.min(invN,Math.max(0,Number(form.attendingCount)||0)):invN;
   const isP=hasP&&attN!==invN;
-  const handleSave=()=>{if(!form.name.trim())return;onSave({...guest,name:form.name.trim(),category:form.category,count:invN,attendingCount:hasP?attN:null,rsvp:form.rsvp,table:form.table===""?null:Number(form.table),notes:form.notes.trim()});};
+  const handleSave=()=>{if(!form.name.trim())return;onSave({...guest,name:form.name.trim(),category:form.category,count:invN,attendingCount:hasP?attN:null,rsvp:form.rsvp,table:form.table===""?null:String(form.table),notes:form.notes.trim()});};
   const CF=({label,hint,val,onDec,onInc,onClear,showClear})=>(<div><div className="count-field-label">{label}</div><div className="counter-row"><button type="button" className="counter-btn" onClick={onDec}>−</button><span className="counter-val">{val===null?"—":val}</span><button type="button" className="counter-btn" onClick={onInc}>+</button>{showClear&&<button type="button" className="clear-link" onClick={onClear}>reset</button>}</div><div className="count-field-hint">{hint}</div></div>);
   return(
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -986,7 +986,7 @@ function Dashboard({ guests, categories, user }) {
   const catData=categories.map(cat=>({name:cat.name,color:cat.color,people:guests.filter(g=>g.category===cat.name).reduce((a,g)=>a+getAttending(g),0),entries:guests.filter(g=>g.category===cat.name).length})).sort((a,b)=>b.people-a.people);
   const maxPeople=Math.max(...catData.map(d=>d.people),1);
   const pieData=[{name:"Confirmed",value:confirmedAtt,color:"#2DBD72"},{name:"Pending",value:pendingAtt,color:"#E8A020"},{name:"Declined",value:declinedAtt,color:"#E84060"}].filter(d=>d.value>0);
-  const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>{
+  const tables=[...new Set(guests.map(g=>g.table ? String(g.table) : null).filter(Boolean))].sort((a,b)=>{
     if (a === "HT" && b === "HT") return 0;
     if (a === "HT") return -1;
     if (b === "HT") return 1;
@@ -999,7 +999,7 @@ function Dashboard({ guests, categories, user }) {
   const unassigned=guests.filter(g=>!g.table);
   const unassignedPeople=unassigned.reduce((a,g)=>a+getAttending(g),0);
   const tableData=tables.map(t=>{
-    const tg=guests.filter(g=>g.table===t);
+    const tg=guests.filter(g=>String(g.table)===String(t));
     return { table:t, groups:tg.length, people:tg.reduce((a,g)=>a+getAttending(g),0) };
   });
   const seatedPeople=tableData.reduce((a,t)=>a+t.people,0);
@@ -2200,7 +2200,7 @@ export default function App() {
     showToast("Categories breakdown PDF downloaded ✓");
   };
 
-  const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>{
+  const tables=[...new Set(guests.map(g=>g.table ? String(g.table) : null).filter(Boolean))].sort((a,b)=>{
     if (a === "HT" && b === "HT") return 0;
     if (a === "HT") return -1;
     if (b === "HT") return 1;
