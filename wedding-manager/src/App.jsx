@@ -1388,6 +1388,28 @@ export default function App() {
     updateGuests(updated,audit).then(()=>showToast(guest.id?"Saved ✓":"Guest added ✓")).catch(()=>{});setModalGuest(null);
   };
   const handleDelete=(id)=>{const guest=guests.find(g=>g.id===id);updateGuests(guests.filter(g=>g.id!==id),{action:"guest_deleted",details:{guestId:id,guestName:guest?.name}});setConfirmId(null);showToast("Guest removed");};
+  const handleSplit=(id)=>{
+    const original = guests.find(g => g.id === id);
+    if (!original || original.count <= 1) return;
+    const splitId = Math.max(...guests.map(g => Number(g.id) || 0), 0) + 1;
+    const newGuest = {
+      ...original,
+      id: String(splitId),
+      name: `${original.name} (Split)`,
+      count: 1,
+      attendingCount: original.attendingCount ? (original.attendingCount > 0 ? 1 : null) : null,
+      table: null
+    };
+    const updatedOriginal = {
+      ...original,
+      count: original.count - 1,
+      attendingCount: original.attendingCount ? original.attendingCount - 1 : null
+    };
+    const newGuests = guests.map(g => g.id === original.id ? updatedOriginal : g);
+    newGuests.push(newGuest);
+    updateGuests(newGuests, { action: "guest_split", details: { originalName: original.name } });
+    showToast("Guest split!");
+  };
   const handleSort=(col)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
 
   const downloadPDF = () => {
@@ -2263,7 +2285,7 @@ export default function App() {
                           <td><InvBadge status={g.inviteStatus||"not_sent"} onChange={s=>handleInviteChange(g.id,s)}/></td>
                           <td style={{textAlign:"center"}}>{g.table?<span className="table-tag">T{g.table}</span>:<span style={{color:T.borderLight}}>—</span>}</td>
                           <td style={{fontSize:12,color:T.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:0}} title={g.notes||""}>{g.notes||<span style={{color:T.borderLight}}>—</span>}</td>
-                          <td style={{textAlign:"right"}}><button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit">✏️</button><button className="action-btn del" onClick={()=>setConfirmId(g.id)} title="Remove">🗑</button></td>
+                          <td style={{textAlign:"right"}}>{g.count>1&&<button className="action-btn" onClick={()=>handleSplit(g.id)} title="Split guest">✂️</button>}<button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit">✏️</button><button className="action-btn del" onClick={()=>setConfirmId(g.id)} title="Remove">🗑</button></td>
                         </tr>
                       ))}
                     </tbody></table>
@@ -2288,7 +2310,7 @@ export default function App() {
                             </div>
                             <div className="declined-card-actions">
                               <button className="action-btn" onClick={()=>handleRsvpChange(g.id,"pending")} title="Re-invite" style={{fontSize:13}}>🔄</button>
-                              <button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit" style={{fontSize:13}}>✏️</button>
+                              {g.count>1&&<button className="action-btn" onClick={()=>handleSplit(g.id)} title="Split guest" style={{fontSize:13}}>✂️</button>}<button className="action-btn" onClick={()=>setModalGuest(g)} title="Edit" style={{fontSize:13}}>✏️</button>
                               <button className="action-btn del" onClick={()=>setConfirmId(g.id)} title="Remove" style={{fontSize:13}}>🗑</button>
                             </div>
                           </div>
