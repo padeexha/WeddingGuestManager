@@ -2148,7 +2148,7 @@ export default function App() {
             <button className={`nav-btn${view==="guests"?" active":""}`} onClick={()=>setView("guests")}>Guest List<span className="nav-count">{guests.length}</span></button>
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
-            <button className={`nav-btn${view===\"planner\"?\" active\":\"\"}`} onClick={()=>setView(\"planner\")}>Planner</button>
+            <button className={`nav-btn${view==="planner"?" active":""}`} onClick={()=>setView("planner")}>Planner</button>
             {isAdmin&&<button className={`nav-btn${view==="audit"?" active":""}`} onClick={()=>setView("audit")}>Audit<span className="nav-count">{auditLogs.length}</span></button>}
           </nav>
           <div style={{display:"flex",gap:8,flexShrink:0}}>
@@ -2277,7 +2277,7 @@ export default function App() {
 
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
           {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast} downloadCategoriesBreakdownPDF={downloadCategoriesBreakdownPDF}/>}
-          {view===\"planner\"&&<TablePlanner guests={guests} />}
+          {view==="planner"&&<TablePlanner guests={guests} />}
           {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>
