@@ -1233,6 +1233,8 @@ export default function App() {
   const [filterTable,setFilterTable]=useState("all");
   const [modalGuest,setModalGuest]=useState(null);
   const [confirmId,setConfirmId]=useState(null);
+  const [splitConfirmId,setSplitConfirmId]=useState(null);
+  const [splitAmount,setSplitAmount]=useState(1);
   const [toast,setToast]=useState(null);
   const [nextId,setNextId]=useState(101);
   const [sortCol,setSortCol]=useState("name");
@@ -1391,24 +1393,36 @@ export default function App() {
   const handleSplit=(id)=>{
     const original = guests.find(g => g.id === id);
     if (!original || original.count <= 1) return;
+    if (original.count === 2) {
+      executeSplit(id, 1);
+    } else {
+      setSplitAmount(1);
+      setSplitConfirmId(id);
+    }
+  };
+  const executeSplit = (id, amountToSplit) => {
+    const original = guests.find(g => g.id === id);
+    if (!original || original.count <= 1) return;
     const splitId = Math.max(...guests.map(g => Number(g.id) || 0), 0) + 1;
+    const splitAttending = original.attendingCount ? Math.min(amountToSplit, original.attendingCount) : null;
     const newGuest = {
       ...original,
       id: String(splitId),
       name: `${original.name} (Split)`,
-      count: 1,
-      attendingCount: original.attendingCount ? (original.attendingCount > 0 ? 1 : null) : null,
+      count: amountToSplit,
+      attendingCount: splitAttending,
       table: null
     };
     const updatedOriginal = {
       ...original,
-      count: original.count - 1,
-      attendingCount: original.attendingCount ? original.attendingCount - 1 : null
+      count: original.count - amountToSplit,
+      attendingCount: original.attendingCount ? original.attendingCount - splitAttending : null
     };
     const newGuests = guests.map(g => g.id === original.id ? updatedOriginal : g);
     newGuests.push(newGuest);
     updateGuests(newGuests, { action: "guest_split", details: { originalName: original.name } });
     showToast("Guest split!");
+    setSplitConfirmId(null);
   };
   const handleUndoSplit=(id)=>{
     const splitGuest = guests.find(g => g.id === id);
@@ -2352,6 +2366,7 @@ export default function App() {
 
       {modalGuest!==null&&<GuestModal guest={modalGuest} categories={categories} onClose={()=>setModalGuest(null)} onSave={handleSave}/>}
       {confirmId&&(<div className="confirm-overlay"><div className="confirm-box"><div className="confirm-title">Remove guest?</div><div className="confirm-sub">"{guests.find(g=>g.id===confirmId)?.name}" will be permanently removed.</div><div className="confirm-btns"><button className="btn btn-ghost" onClick={()=>setConfirmId(null)}>Cancel</button><button className="btn btn-danger" onClick={()=>handleDelete(confirmId)}>Remove</button></div></div></div>)}
+      {splitConfirmId&&(<div className="confirm-overlay"><div className="confirm-box"><div className="confirm-title">Split guest group</div><div className="confirm-sub">How many guests would you like to split off into a new group?</div><div style={{margin:"15px 0"}}><input type="number" className="form-input" min={1} max={(guests.find(g=>g.id===splitConfirmId)?.count || 2) - 1} value={splitAmount} onChange={(e)=>setSplitAmount(Number(e.target.value))} /></div><div className="confirm-btns"><button className="btn btn-ghost" onClick={()=>setSplitConfirmId(null)}>Cancel</button><button className="btn btn-primary" onClick={()=>executeSplit(splitConfirmId, splitAmount)}>Split</button></div></div></div>)}
       {toast&&<div className="toast">{toast}</div>}
     </>
   );
