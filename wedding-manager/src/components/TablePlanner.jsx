@@ -48,6 +48,8 @@ const TABLE_COORDS = {
   9: { left: 93, top: 82 },
 };
 
+import floorplanImage from '../assets/floorplan.png';
+
 export default function TablePlanner({ guests }) {
   const [hoveredTable, setHoveredTable] = useState(null);
   
@@ -76,9 +78,9 @@ export default function TablePlanner({ guests }) {
       </div>
 
       <div className="planner-map-wrap">
-        {/* Placeholder image; replace the src when you have the real image in assets */}
+        {/* Floor plan image */}
         <img 
-          src="/src/assets/floorplan.png" 
+          src={floorplanImage} 
           alt="Floor Plan" 
           className="planner-image"
           onError={(e) => {
