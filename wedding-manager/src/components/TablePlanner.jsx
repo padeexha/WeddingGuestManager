@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import floorplanImage from '../assets/floorplan.png';
 
 // Rough table coordinates as percentages (left, top) based on the image
 const TABLE_COORDS = {
@@ -48,10 +49,9 @@ const TABLE_COORDS = {
   9: { left: 93, top: 82 },
 };
 
-import floorplanImage from '../assets/floorplan.png';
-
-export default function TablePlanner({ guests }) {
-  const [hoveredTable, setHoveredTable] = useState(null);
+export default function TablePlanner({ guests, updateGuests, showToast }) {
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
   
   // Create a map of table number to list of guests assigned to it
   const guestsByTable = {};
@@ -67,18 +67,39 @@ export default function TablePlanner({ guests }) {
 
   const getAttending = (g) => g.attendingCount != null ? g.attendingCount : g.count;
 
+  // Unassigned guests
+  const unassignedGuests = guests.filter(g => g.table == null || g.table === "")
+    .filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const handleRemoveGuest = (guestId) => {
+    const guest = guests.find(g => g.id === guestId);
+    updateGuests(guests.map(g => g.id === guestId ? { ...g, table: null } : g), {
+      action: "guest_table_removed",
+      details: { guestId, guestName: guest?.name, fromTable: selectedTable }
+    });
+    showToast("Removed from table");
+  };
+
+  const handleAddGuest = (guestId) => {
+    const guest = guests.find(g => g.id === guestId);
+    updateGuests(guests.map(g => g.id === guestId ? { ...g, table: selectedTable } : g), {
+      action: "guest_table_assigned",
+      details: { guestId, guestName: guest?.name, toTable: selectedTable }
+    });
+    showToast("Added to table");
+  };
+
   return (
     <div className="table-planner-container">
       <div className="dashboard-hero" style={{marginBottom: 24, minHeight: 'auto', padding: '24px 30px', alignItems: 'center'}}>
         <div>
           <div className="dashboard-kicker">Planner</div>
           <h2 style={{fontSize: 32, marginBottom: 8}}>Table Planner</h2>
-          <p style={{margin: 0}}>Hover over a table on the floor plan to see the assigned guests.</p>
+          <p style={{margin: 0}}>Click on a table to manage its seated guests.</p>
         </div>
       </div>
 
       <div className="planner-map-wrap">
-        {/* Floor plan image */}
         <img 
           src={floorplanImage} 
           alt="Floor Plan" 
@@ -96,48 +117,92 @@ export default function TablePlanner({ guests }) {
         {Object.entries(TABLE_COORDS).map(([tableNum, coords]) => {
           const tNum = Number(tableNum);
           const tableGuests = guestsByTable[tNum] || [];
-          const totalPeople = tableGuests.reduce((acc, g) => acc + getAttending(g), 0);
           
           return (
             <div 
               key={tableNum}
-              className={`planner-table-spot ${hoveredTable === tNum ? 'active' : ''} ${tableGuests.length > 0 ? 'occupied' : ''}`}
+              className={`planner-table-spot ${selectedTable === tNum ? 'active' : ''} ${tableGuests.length > 0 ? 'occupied' : ''}`}
               style={{
                 left: `${coords.left}%`,
                 top: `${coords.top}%`,
               }}
-              onMouseEnter={() => setHoveredTable(tNum)}
-              onMouseLeave={() => setHoveredTable(null)}
+              onClick={() => {
+                setSelectedTable(tNum);
+                setSearchTerm("");
+              }}
             >
-              {/* Optional: Show table number on the spot if desired */}
-              {/* <span className="planner-table-num">{tableNum}</span> */}
-              
-              {hoveredTable === tNum && (
-                <div className="planner-tooltip">
-                  <div className="planner-tooltip-header">
-                    <h4>Table {tableNum}</h4>
-                    <span className="planner-tooltip-count">{totalPeople} seated</span>
-                  </div>
-                  <div className="planner-tooltip-body">
-                    {tableGuests.length === 0 ? (
-                      <div className="planner-tooltip-empty">No guests assigned to this table.</div>
-                    ) : (
-                      <ul className="planner-tooltip-list">
-                        {tableGuests.map(g => (
-                          <li key={g.id}>
-                            <span className="planner-tooltip-guest-name">{g.name}</span>
-                            <span className="planner-tooltip-guest-count">x{getAttending(g)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
       </div>
+
+      {selectedTable && (
+        <div className="modal-overlay" onClick={() => setSelectedTable(null)}>
+          <div className="modal-content table-modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedTable(null)}>✕</button>
+            <div className="modal-header">
+              <h3>Table {selectedTable}</h3>
+              <p>Manage guests for this table</p>
+            </div>
+            
+            <div className="table-modal-split">
+              {/* Seated Guests Section */}
+              <div className="table-modal-section">
+                <div className="table-modal-section-title">
+                  Seated Guests
+                  <span className="count-badge">
+                    {(guestsByTable[selectedTable] || []).reduce((acc, g) => acc + getAttending(g), 0)}
+                  </span>
+                </div>
+                <div className="table-modal-list">
+                  {!(guestsByTable[selectedTable] || []).length ? (
+                    <div className="empty-state">No guests assigned yet</div>
+                  ) : (
+                    (guestsByTable[selectedTable] || []).map(g => (
+                      <div className="table-modal-row" key={g.id}>
+                        <div className="table-modal-guest-info">
+                          <span className="name">{g.name}</span>
+                          <span className="count">x{getAttending(g)}</span>
+                        </div>
+                        <button className="btn-remove" onClick={() => handleRemoveGuest(g.id)}>✕</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Unassigned Guests Section */}
+              <div className="table-modal-section">
+                <div className="table-modal-section-title">
+                  Add Guests
+                </div>
+                <input 
+                  type="text" 
+                  className="form-input table-modal-search" 
+                  placeholder="Search unassigned guests..." 
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+                <div className="table-modal-list">
+                  {unassignedGuests.length === 0 ? (
+                    <div className="empty-state">No unassigned guests found</div>
+                  ) : (
+                    unassignedGuests.map(g => (
+                      <div className="table-modal-row add-row" key={g.id} onClick={() => handleAddGuest(g.id)}>
+                        <div className="table-modal-guest-info">
+                          <span className="name">{g.name}</span>
+                          <span className="count">x{getAttending(g)}</span>
+                        </div>
+                        <button className="btn-add">+</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

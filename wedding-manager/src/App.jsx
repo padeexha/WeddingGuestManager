@@ -632,6 +632,32 @@ const css = `
   .planner-tooltip-list li:last-child { border-bottom:none; padding-bottom:0; }
   .planner-tooltip-guest-name { font-weight:500; color:${T.text}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
   .planner-tooltip-guest-count { font-size:11px; color:${T.textMuted}; background:${T.surfaceAlt}; padding:2px 6px; border-radius:6px; font-weight:600; }
+  /* Table Modal Styles */
+  .table-modal { width:90%; max-width:600px; padding:0; overflow:hidden; display:flex; flex-direction:column; }
+  .table-modal .modal-header { padding:24px 30px 20px; border-bottom:1px solid rgba(61,24,41,.08); background:#fafafa; }
+  .table-modal .modal-header h3 { margin:0 0 6px; font-size:24px; font-family:"Cormorant Garamond",serif; color:#3d1829; }
+  .table-modal .modal-header p { margin:0; font-size:14px; color:#85717a; }
+  .table-modal-split { display:grid; grid-template-columns:1fr 1fr; gap:0; background:#fff; }
+  @media (max-width: 600px) {
+    .table-modal-split { grid-template-columns:1fr; }
+  }
+  .table-modal-section { display:flex; flex-direction:column; padding:20px; border-right:1px solid rgba(61,24,41,.08); max-height:400px; }
+  .table-modal-section:last-child { border-right:none; background:#fafafa; }
+  .table-modal-section-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.8px; color:#85717a; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
+  .table-modal-section .count-badge { background:rgba(176,82,120,.15); color:#b05278; padding:2px 8px; border-radius:10px; font-size:11px; }
+  .table-modal-search { margin-bottom:12px; font-size:13px; padding:10px 14px; }
+  .table-modal-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:4px; }
+  .table-modal-row { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#fff; border:1px solid rgba(61,24,41,.08); border-radius:8px; transition:all .15s; }
+  .table-modal-row.add-row { cursor:pointer; }
+  .table-modal-row.add-row:hover { border-color:#b05278; background:rgba(176,82,120,.03); }
+  .table-modal-guest-info { display:flex; flex-direction:column; gap:2px; }
+  .table-modal-guest-info .name { font-size:14px; font-weight:500; color:#3d1829; }
+  .table-modal-guest-info .count { font-size:11px; color:#85717a; }
+  .btn-remove { background:none; border:none; font-size:14px; color:#85717a; cursor:pointer; padding:4px 8px; border-radius:4px; }
+  .btn-remove:hover { color:#d32f2f; background:rgba(211,47,47,.1); }
+  .btn-add { background:none; border:none; font-size:16px; color:#b05278; font-weight:bold; }
+  .empty-state { font-size:13px; color:#85717a; font-style:italic; text-align:center; padding:20px 0; }
+
 `;
 
 // ── Small shared components ───────────────────────────────────────────────────
@@ -2277,7 +2303,7 @@ export default function App() {
 
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
           {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast} downloadCategoriesBreakdownPDF={downloadCategoriesBreakdownPDF}/>}
-          {view==="planner"&&<TablePlanner guests={guests} />}
+          {view==="planner"&&<TablePlanner guests={guests} updateGuests={updateGuests} showToast={showToast} />}
           {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>
