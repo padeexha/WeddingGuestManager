@@ -114,13 +114,15 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
 
   return (
     <div className="table-planner-container">
-      <div className="dashboard-hero" style={{marginBottom: 24, minHeight: 'auto', padding: '24px 30px', alignItems: 'center', display: 'flex', justifyContent: 'space-between'}}>
-        <div>
-          <div className="dashboard-kicker">Planner</div>
-          <h2 style={{fontSize: 32, marginBottom: 8}}>Table Planner</h2>
-          <p style={{margin: 0}}>Click on a table to manage its seated guests.</p>
+      <div className="dashboard-hero" style={{marginBottom: 24, minHeight: 'auto', padding: '24px 30px'}}>
+        <div style={{display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
+          <div>
+            <div className="dashboard-kicker">Planner</div>
+            <h2 style={{fontSize: 32, marginBottom: 8}}>Table Planner</h2>
+            <p style={{margin: 0}}>Click on a table to manage its seated guests.</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => setSwapModalOpen(true)}>🔄 Swap Tables</button>
         </div>
-        <button className="btn btn-primary" onClick={() => setSwapModalOpen(true)}>🔄 Swap Tables</button>
       </div>
 
       <div className="planner-map-wrap">
