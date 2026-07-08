@@ -44,9 +44,7 @@ const TABLE_COORDS = {
   4: { left: 74, top: 81 },
   
   // Head table area
-  7: { left: 93, top: 64 },
-  8: { left: 93, top: 73 },
-  9: { left: 93, top: 82 },
+  "HT": { left: 93, top: 73 },
 };
 
 export default function TablePlanner({ guests, updateGuests, showToast }) {
@@ -57,7 +55,7 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
   const guestsByTable = {};
   guests.forEach(g => {
     if (g.table != null && g.table !== "") {
-      const t = Number(g.table);
+      const t = String(g.table);
       if (!guestsByTable[t]) {
         guestsByTable[t] = [];
       }
@@ -115,13 +113,13 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
         </div>
         
         {Object.entries(TABLE_COORDS).map(([tableNum, coords]) => {
-          const tNum = Number(tableNum);
+          const tNum = String(tableNum);
           const tableGuests = guestsByTable[tNum] || [];
           
           return (
             <div 
               key={tableNum}
-              className={`planner-table-spot ${selectedTable === tNum ? 'active' : ''} ${tableGuests.length > 0 ? 'occupied' : ''}`}
+              className={`planner-table-spot ${tNum === "HT" ? 'ht' : ''} ${selectedTable === tNum ? 'active' : ''} ${tableGuests.length > 0 ? 'occupied' : ''}`}
               style={{
                 left: `${coords.left}%`,
                 top: `${coords.top}%`,

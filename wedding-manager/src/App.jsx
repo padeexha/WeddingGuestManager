@@ -657,6 +657,11 @@ const css = `
   .btn-remove:hover { color:#d32f2f; background:rgba(211,47,47,.1); }
   .btn-add { background:none; border:none; font-size:16px; color:#b05278; font-weight:bold; }
   .empty-state { font-size:13px; color:#85717a; font-style:italic; text-align:center; padding:20px 0; }
+  /* Head Table Styles */
+  .planner-table-spot.ht { width:8%; height:25%; border-radius:6px; background:rgba(255,255,255,0.4); }
+  .planner-table-spot.ht:hover, .planner-table-spot.ht.active { background:rgba(176,82,120,0.6); border-color:#b05278; }
+  .planner-table-spot.ht.occupied { background:rgba(176,82,120,0.4); border-color:#b05278; }
+
 
 `;
 
