@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import floorplanImage from '../assets/floorplan.png';
 
 // Rough table coordinates as percentages (left, top) based on the image
@@ -117,6 +119,88 @@ export default function TablePlanner({ guests, categories, updateGuests, showToa
     setSwapTable2("");
   };
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+    let yPos = 20;
+
+    // Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("Table Seating Plan", pageW / 2, yPos, { align: "center" });
+    yPos += 10;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text("Generated on " + new Date().toLocaleDateString(), pageW / 2, yPos, { align: "center" });
+    yPos += 15;
+
+    // Sort tables: HT first, then numerically
+    const sortedTables = allTables.sort((a,b)=>{
+      if (a === "HT" && b === "HT") return 0;
+      if (a === "HT") return -1;
+      if (b === "HT") return 1;
+      return Number(a)-Number(b);
+    });
+
+    sortedTables.forEach(t => {
+      const tableGuests = guestsByTable[t] || [];
+      if (tableGuests.length === 0) return;
+
+      const totalPax = tableGuests.reduce((acc, g) => acc + getAttending(g), 0);
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [[`Table ${t} (${totalPax} pax)`, 'Category', 'Count']],
+        body: tableGuests.map(g => [g.name, g.category || '-', `x${getAttending(g)}`]),
+        theme: 'striped',
+        headStyles: { fillColor: [176, 82, 120], fontSize: 12, fontStyle: 'bold' },
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 20, halign: 'center' }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      yPos = doc.lastAutoTable.finalY + 12;
+
+      if (yPos > doc.internal.pageSize.getHeight() - 30) {
+        doc.addPage();
+        yPos = 20;
+      }
+    });
+
+    // Unassigned section
+    if (unassignedGuests.length > 0) {
+      if (yPos > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      const unassignedPax = unassignedGuests.reduce((acc, g) => acc + getAttending(g), 0);
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [[`Unassigned Guests (${unassignedPax} pax)`, 'Category', 'Count']],
+        body: unassignedGuests.map(g => [g.name, g.category || '-', `x${getAttending(g)}`]),
+        theme: 'plain',
+        headStyles: { fillColor: [150, 150, 150], textColor: 255, fontSize: 12, fontStyle: 'bold' },
+        styles: { fontSize: 10, cellPadding: 4, textColor: 100 },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 20, halign: 'center' }
+        },
+        margin: { left: 14, right: 14 }
+      });
+    }
+
+    doc.save(`Table_Seating_Plan_${new Date().toISOString().split('T')[0]}.pdf`);
+    showToast("Table plan PDF downloaded ✓");
+  };
+
   const allTables = Object.keys(TABLE_COORDS);
 
   return (
@@ -128,7 +212,10 @@ export default function TablePlanner({ guests, categories, updateGuests, showToa
             <h2 style={{fontSize: 32, marginBottom: 8}}>Table Planner</h2>
             <p style={{margin: 0}}>Click on a table to manage its seated guests.</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setSwapModalOpen(true)}>🔄 Swap Tables</button>
+          <div style={{display: 'flex', gap: 10}}>
+            <button className="btn btn-ghost" onClick={handleExportPDF} style={{background: '#fff', border: '1px solid rgba(176,82,120,0.2)'}}>📄 Export PDF</button>
+            <button className="btn btn-primary" onClick={() => setSwapModalOpen(true)}>🔄 Swap Tables</button>
+          </div>
         </div>
       </div>
 
