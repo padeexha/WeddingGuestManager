@@ -986,7 +986,12 @@ function Dashboard({ guests, categories, user }) {
   const catData=categories.map(cat=>({name:cat.name,color:cat.color,people:guests.filter(g=>g.category===cat.name).reduce((a,g)=>a+getAttending(g),0),entries:guests.filter(g=>g.category===cat.name).length})).sort((a,b)=>b.people-a.people);
   const maxPeople=Math.max(...catData.map(d=>d.people),1);
   const pieData=[{name:"Confirmed",value:confirmedAtt,color:"#2DBD72"},{name:"Pending",value:pendingAtt,color:"#E8A020"},{name:"Declined",value:declinedAtt,color:"#E84060"}].filter(d=>d.value>0);
-  const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
+  const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>{
+    if (a === "HT" && b === "HT") return 0;
+    if (a === "HT") return -1;
+    if (b === "HT") return 1;
+    return Number(a)-Number(b);
+  });
   const invSent=guests.filter(g=>g.inviteStatus==="sent"||g.inviteStatus==="delivered").length;
   const confirmedPct=totalAttending>0?Math.round((confirmedAtt/totalAttending)*100):0;
   const invitePct=guests.length>0?Math.round((invSent/guests.length)*100):0;
@@ -2195,7 +2200,12 @@ export default function App() {
     showToast("Categories breakdown PDF downloaded ✓");
   };
 
-  const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>a-b);
+  const tables=[...new Set(guests.map(g=>g.table).filter(Boolean))].sort((a,b)=>{
+    if (a === "HT" && b === "HT") return 0;
+    if (a === "HT") return -1;
+    if (b === "HT") return 1;
+    return Number(a)-Number(b);
+  });
   const filtered=guests.filter(g=>{
     if(search&&!g.name.toLowerCase().includes(search.toLowerCase())&&!(g.notes||"").toLowerCase().includes(search.toLowerCase())) return false;
     if(filterCat!=="all"&&g.category!==filterCat) return false;
