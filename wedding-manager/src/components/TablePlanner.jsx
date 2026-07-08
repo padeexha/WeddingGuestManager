@@ -50,6 +50,9 @@ const TABLE_COORDS = {
 export default function TablePlanner({ guests, updateGuests, showToast }) {
   const [selectedTable, setSelectedTable] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [swapTable1, setSwapTable1] = useState("");
+  const [swapTable2, setSwapTable2] = useState("");
   
   // Create a map of table number to list of guests assigned to it
   const guestsByTable = {};
@@ -87,14 +90,34 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
     showToast("Added to table");
   };
 
+  const handleSwap = () => {
+    if (!swapTable1 || !swapTable2 || swapTable1 === swapTable2) {
+      showToast("Please select two different tables");
+      return;
+    }
+    const newGuests = guests.map(g => {
+      if (String(g.table) === swapTable1) return { ...g, table: swapTable2 };
+      if (String(g.table) === swapTable2) return { ...g, table: swapTable1 };
+      return g;
+    });
+    updateGuests(newGuests, { action: "tables_swapped", details: { table1: swapTable1, table2: swapTable2 } });
+    showToast(`Swapped Table ${swapTable1} & ${swapTable2}`);
+    setSwapModalOpen(false);
+    setSwapTable1("");
+    setSwapTable2("");
+  };
+
+  const allTables = Object.keys(TABLE_COORDS);
+
   return (
     <div className="table-planner-container">
-      <div className="dashboard-hero" style={{marginBottom: 24, minHeight: 'auto', padding: '24px 30px', alignItems: 'center'}}>
+      <div className="dashboard-hero" style={{marginBottom: 24, minHeight: 'auto', padding: '24px 30px', alignItems: 'center', display: 'flex', justifyContent: 'space-between'}}>
         <div>
           <div className="dashboard-kicker">Planner</div>
           <h2 style={{fontSize: 32, marginBottom: 8}}>Table Planner</h2>
           <p style={{margin: 0}}>Click on a table to manage its seated guests.</p>
         </div>
+        <button className="btn btn-primary" onClick={() => setSwapModalOpen(true)}>🔄 Swap Tables</button>
       </div>
 
       <div className="planner-map-wrap">
@@ -197,6 +220,36 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {swapModalOpen && (
+        <div className="modal-overlay" onClick={() => setSwapModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: 400}}>
+            <button className="modal-close" onClick={() => setSwapModalOpen(false)}>✕</button>
+            <h2 className="modal-title">Swap Tables</h2>
+            <p style={{marginBottom: 20, color: '#7a4d63'}}>Select two tables to perfectly swap all guests between them.</p>
+            <div style={{display: 'flex', gap: 15, marginBottom: 20}}>
+              <div style={{flex: 1}}>
+                <label className="form-label">Table 1</label>
+                <select className="form-input" value={swapTable1} onChange={e => setSwapTable1(e.target.value)}>
+                  <option value="">Select...</option>
+                  {allTables.map(t => <option key={t} value={t}>Table {t}</option>)}
+                </select>
+              </div>
+              <div style={{flex: 1}}>
+                <label className="form-label">Table 2</label>
+                <select className="form-input" value={swapTable2} onChange={e => setSwapTable2(e.target.value)}>
+                  <option value="">Select...</option>
+                  {allTables.map(t => <option key={t} value={t}>Table {t}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{display: 'flex', justifyContent: 'flex-end', gap: 10}}>
+              <button className="btn btn-ghost" onClick={() => setSwapModalOpen(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSwap}>Swap Guests</button>
             </div>
           </div>
         </div>
