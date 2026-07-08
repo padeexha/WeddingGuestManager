@@ -2201,11 +2201,21 @@ export default function App() {
     if(filterCat!=="all"&&g.category!==filterCat) return false;
     if(filterRsvp!=="all"&&g.rsvp!==filterRsvp) return false;
     if(separateDeclined&&filterRsvp!=="declined"&&g.rsvp==="declined") return false;
-    if(filterTable!=="all"){if(filterTable==="none"&&g.table)return false;if(filterTable!=="none"&&g.table!==Number(filterTable))return false;}
+    if(filterTable!=="all"){if(filterTable==="none"&&g.table)return false;if(filterTable!=="none"&&String(g.table)!==String(filterTable))return false;}
     return true;
   }).sort((a,b)=>{
     let av,bv;
-    if(sortCol==="attending"){av=getAttending(a);bv=getAttending(b);}else if(sortCol==="table"){av=a.table||9999;bv=b.table||9999;}else if(sortCol==="count"){av=a.count;bv=b.count;}else{av=(a[sortCol]||"").toString().toLowerCase();bv=(b[sortCol]||"").toString().toLowerCase();}
+    if(sortCol==="attending"){av=getAttending(a);bv=getAttending(b);}else if(sortCol==="table"){
+      const aVal = a.table;
+      const bVal = b.table;
+      if (!aVal && !bVal) return 0;
+      if (!aVal) return sortDir==="asc"?1:-1;
+      if (!bVal) return sortDir==="asc"?-1:1;
+      if (aVal === "HT" && bVal === "HT") return 0;
+      if (aVal === "HT") return sortDir==="asc"?-1:1;
+      if (bVal === "HT") return sortDir==="asc"?1:-1;
+      return sortDir==="asc"?Number(aVal)-Number(bVal):Number(bVal)-Number(aVal);
+    }else if(sortCol==="count"){av=a.count;bv=b.count;}else{av=(a[sortCol]||"").toString().toLowerCase();bv=(b[sortCol]||"").toString().toLowerCase();}
     return sortDir==="asc"?(av>bv?1:-1):(av<bv?1:-1);
   });
 
@@ -2213,7 +2223,7 @@ export default function App() {
     if(g.rsvp!=="declined") return false;
     if(search&&!g.name.toLowerCase().includes(search.toLowerCase())&&!(g.notes||"").toLowerCase().includes(search.toLowerCase())) return false;
     if(filterCat!=="all"&&g.category!==filterCat) return false;
-    if(filterTable!=="all"){if(filterTable==="none"&&g.table)return false;if(filterTable!=="none"&&g.table!==Number(filterTable))return false;}
+    if(filterTable!=="all"){if(filterTable==="none"&&g.table)return false;if(filterTable!=="none"&&String(g.table)!==String(filterTable))return false;}
     return true;
   }).sort((a,b)=>a.name.localeCompare(b.name));
 
@@ -2364,7 +2374,7 @@ export default function App() {
 
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
           {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast} downloadCategoriesBreakdownPDF={downloadCategoriesBreakdownPDF}/>}
-          {view==="planner"&&<TablePlanner guests={guests} updateGuests={updateGuests} showToast={showToast} />}
+          {view==="planner"&&<TablePlanner guests={guests} categories={categories} updateGuests={updateGuests} showToast={showToast} />}
           {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>

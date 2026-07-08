@@ -50,9 +50,10 @@ const TABLE_COORDS = {
   9: { left: 93, top: 82 },
 };
 
-export default function TablePlanner({ guests, updateGuests, showToast }) {
+export default function TablePlanner({ guests, categories, updateGuests, showToast }) {
   const [selectedTable, setSelectedTable] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterCat, setFilterCat] = useState("all");
   const [swapModalOpen, setSwapModalOpen] = useState(false);
   const [swapTable1, setSwapTable1] = useState("");
   const [swapTable2, setSwapTable2] = useState("");
@@ -73,7 +74,13 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
 
   // Unassigned guests
   const unassignedGuests = guests.filter(g => g.table == null || g.table === "")
+    .filter(g => filterCat === "all" || g.category === filterCat)
     .filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const getCategoryColor = (catName) => {
+    const c = categories?.find(cat => cat.name === catName);
+    return c ? c.color : '#85717a';
+  };
 
   const handleRemoveGuest = (guestId) => {
     const guest = guests.find(g => g.id === guestId);
@@ -189,6 +196,7 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
                         <div className="table-modal-guest-info">
                           <span className="name">{g.name}</span>
                           <span className="count">x{getAttending(g)}</span>
+                          {g.category && <span className="category-tag" style={{background: `${getCategoryColor(g.category)}20`, color: getCategoryColor(g.category), fontSize: '11px', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px'}}>{g.category}</span>}
                         </div>
                         <button className="btn-remove" onClick={() => handleRemoveGuest(g.id)}>✕</button>
                       </div>
@@ -202,13 +210,20 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
                 <div className="table-modal-section-title">
                   Add Guests
                 </div>
-                <input 
-                  type="text" 
-                  className="form-input table-modal-search" 
-                  placeholder="Search unassigned guests..." 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
+                <div style={{display: 'flex', gap: 10, marginBottom: 15}}>
+                  <input 
+                    type="text" 
+                    className="form-input table-modal-search" 
+                    placeholder="Search unassigned guests..." 
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    style={{flex: 1, marginBottom: 0}}
+                  />
+                  <select className="form-input filter-select" value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{width: 'auto'}}>
+                    <option value="all">All categories</option>
+                    {categories?.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
                 <div className="table-modal-list">
                   {unassignedGuests.length === 0 ? (
                     <div className="empty-state">No unassigned guests found</div>
@@ -218,6 +233,7 @@ export default function TablePlanner({ guests, updateGuests, showToast }) {
                         <div className="table-modal-guest-info">
                           <span className="name">{g.name}</span>
                           <span className="count">x{getAttending(g)}</span>
+                          {g.category && <span className="category-tag" style={{background: `${getCategoryColor(g.category)}20`, color: getCategoryColor(g.category), fontSize: '11px', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px'}}>{g.category}</span>}
                         </div>
                         <button className="btn-add">+</button>
                       </div>
