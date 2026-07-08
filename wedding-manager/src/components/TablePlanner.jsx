@@ -44,7 +44,10 @@ const TABLE_COORDS = {
   4: { left: 74, top: 81 },
   
   // Head table area
-  "HT": { left: 93, top: 73 },
+  "HT": { left: 93, top: 38 },
+  7: { left: 93, top: 64 },
+  8: { left: 93, top: 73 },
+  9: { left: 93, top: 82 },
 };
 
 export default function TablePlanner({ guests, updateGuests, showToast }) {
