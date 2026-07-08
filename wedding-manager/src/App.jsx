@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 
 import { db, auth } from "./firebase";
 import LoginScreen from "./LoginScreen";
+import TablePlanner from "./components/TablePlanner";
 import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
@@ -52,14 +53,6 @@ const DEFAULT_CATEGORIES = [
   { name:"Thulani's Invites",  color:"#7AAA8F" },
 ];
 
-const DEFAULT_FINANCE_CATEGORIES = [
-  { name: "Venue", color: "#A0547A" },
-  { name: "Catering", color: "#7A6BAA" },
-  { name: "Photography", color: "#6A8FAA" },
-  { name: "Attire", color: "#AA7A6A" },
-  { name: "Decorations", color: "#7AAA8F" },
-  { name: "Other", color: "#B07A54" },
-];
 
 // Canonical categories & guests restored from PDF exports (9 Jun 2026)
 const RESTORED_CATEGORIES = [
@@ -620,6 +613,25 @@ const css = `
     .guest-list-container { flex-direction:column; }
     .declined-sidebar { width:100%; }
   }
+
+  /* Table Planner Styles */
+  .planner-map-wrap { position:relative; width:100%; max-width:1000px; margin:0 auto; border-radius:14px; overflow:hidden; border:1px solid ${T.border}; box-shadow:0 12px 34px rgba(61,24,41,.12); background:#fff; }
+  .planner-image { width:100%; height:auto; display:block; }
+  .planner-table-spot { position:absolute; width:4%; height:5.5%; border-radius:50%; background:transparent; cursor:pointer; transform:translate(-50%, -50%); transition:all .2s ease; z-index:10; }
+  .planner-table-spot.occupied { background:rgba(176,82,120,.15); border:1.5px solid rgba(176,82,120,.4); }
+  .planner-table-spot:hover, .planner-table-spot.active { background:rgba(176,82,120,.4); border-color:${T.primary}; box-shadow:0 0 15px rgba(176,82,120,.4); transform:translate(-50%, -50%) scale(1.1); z-index:20; }
+  .planner-tooltip { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:12px; background:rgba(255,255,255,.95); backdrop-filter:blur(8px); border:1px solid ${T.border}; border-radius:12px; box-shadow:0 8px 24px rgba(61,24,41,.15); width:max-content; min-width:180px; max-width:260px; z-index:100; pointer-events:none; animation:fadeup .2s ease-out forwards; }
+  .planner-tooltip::after { content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%); border-width:6px; border-style:solid; border-color:${T.border} transparent transparent transparent; }
+  .planner-tooltip-header { padding:10px 14px; border-bottom:1px solid ${T.borderLight}; display:flex; justify-content:space-between; align-items:center; background:${T.surfaceAlt}; border-radius:12px 12px 0 0; }
+  .planner-tooltip-header h4 { margin:0; font-family:"Cormorant Garamond",serif; color:${T.text}; font-size:16px; font-weight:600; }
+  .planner-tooltip-count { font-size:11px; font-weight:600; color:${T.primary}; background:${T.primaryBg}; padding:2px 8px; border-radius:10px; }
+  .planner-tooltip-body { padding:10px 14px; max-height:200px; overflow-y:auto; }
+  .planner-tooltip-empty { font-size:12px; color:${T.textMuted}; font-style:italic; text-align:center; padding:10px 0; }
+  .planner-tooltip-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .planner-tooltip-list li { display:flex; justify-content:space-between; align-items:center; font-size:13px; color:${T.textMid}; padding-bottom:4px; border-bottom:1px dashed ${T.borderLight}; }
+  .planner-tooltip-list li:last-child { border-bottom:none; padding-bottom:0; }
+  .planner-tooltip-guest-name { font-weight:500; color:${T.text}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+  .planner-tooltip-guest-count { font-size:11px; color:${T.textMuted}; background:${T.surfaceAlt}; padding:2px 6px; border-radius:6px; font-weight:600; }
 `;
 
 // ── Small shared components ───────────────────────────────────────────────────
@@ -1181,657 +1193,11 @@ function AuditLogsTab({ logs, loading }) {
   );
 }
 
-// ── Finance (Expense) Tab ──────────────────────────────────────────────────────
-function FinanceTab({ budgetItems, setBudgetItems, saveBudgetToCloud, showToast, financeCategories, setFinanceCategories }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [filter, setFilter] = useState('all');
-  const [pdfMenuOpen, setPdfMenuOpen] = useState(false);
-  
-  const totalBudget = budgetItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
-  
-  const totalExpectedBride = budgetItems.reduce((acc, item) => {
-    if (item.splitMode === 'bride') return acc + (item.totalAmount || 0);
-    if (item.splitMode === 'groom') return acc;
-    if (item.splitMode === 'custom') return acc + (item.expectedBride || 0);
-    return acc + (item.totalAmount || 0) / 2; // Default 50/50
-  }, 0);
-
-  const totalExpectedGroom = budgetItems.reduce((acc, item) => {
-    if (item.splitMode === 'bride') return acc;
-    if (item.splitMode === 'groom') return acc + (item.totalAmount || 0);
-    if (item.splitMode === 'custom') return acc + (item.expectedGroom || 0);
-    return acc + (item.totalAmount || 0) / 2;
-  }, 0);
-
-  const totalBridePaid = budgetItems.reduce((acc, item) => {
-    if (item.payments) return acc + item.payments.filter(p => p.payer === 'Bride').reduce((s, p) => s + p.amount, 0);
-    return acc + (item.bridePaid ?? (item.amountPaid || 0));
-  }, 0);
-  const totalGroomPaid = budgetItems.reduce((acc, item) => {
-    if (item.payments) return acc + item.payments.filter(p => p.payer === 'Groom').reduce((s, p) => s + p.amount, 0);
-    return acc + (item.groomPaid || 0);
-  }, 0);
-
-  const brideOwes = Math.max(0, totalExpectedBride - totalBridePaid);
-  const groomOwes = Math.max(0, totalExpectedGroom - totalGroomPaid);
-  
-  const totalPaid = totalBridePaid + totalGroomPaid;
-  const remainingBalance = totalBudget - totalPaid;
-
-  const handleOpenModal = (item = null) => {
-    setEditingItem(item);
-    setIsModalOpen(true);
-  };
-
-  const handleSave = async (newItem) => {
-    let updatedItems;
-    if (editingItem) {
-      updatedItems = budgetItems.map(i => i.id === newItem.id ? newItem : i);
-    } else {
-      updatedItems = [...budgetItems, newItem];
-    }
-    setBudgetItems(updatedItems);
-    await saveBudgetToCloud(updatedItems);
-    showToast("Expense saved");
-    setIsModalOpen(false);
-  };
-
-  const handleDelete = async (id) => {
-    if(!window.confirm("Delete this expense?")) return;
-    const updatedItems = budgetItems.filter(i => i.id !== id);
-    setBudgetItems(updatedItems);
-    await saveBudgetToCloud(updatedItems);
-    showToast("Item deleted");
-  };
-
-  const downloadFinancePDF = (mode = 'all') => {
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-    const dateStr = new Date().toISOString().split('T')[0];
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.setTextColor(92, 40, 64);
-    
-    let title = "Wedding Expenses Report";
-    if (mode === 'bride') title = "Bride's Expenses Report";
-    if (mode === 'groom') title = "Groom's Expenses Report";
-    
-    doc.text(title, 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Generated on ${dateStr}`, 14, 29);
-    
-    doc.setFontSize(11);
-    doc.setTextColor(60, 60, 60);
-    doc.text(`Total Expenses: LKR ${totalBudget.toLocaleString()}`, 14, 40);
-    doc.text(`Remaining Balance: LKR ${remainingBalance.toLocaleString()}`, 14, 46);
-    
-    doc.text(`Bride Paid: LKR ${totalBridePaid.toLocaleString()}`, 100, 40);
-    doc.text(`Bride Needs to Pay: LKR ${brideOwes.toLocaleString()}`, 100, 46);
-    
-    doc.text(`Groom Paid: LKR ${totalGroomPaid.toLocaleString()}`, 180, 40);
-    doc.text(`Groom Needs to Pay: LKR ${groomOwes.toLocaleString()}`, 180, 46);
-    
-    const tableCols = ["Description", "Category", "Responsibility", "Total Cost", "Bride Paid", "Groom Paid", "Remaining", "Status"];
-    
-    const itemsToExport = budgetItems.filter(item => {
-      if (mode === 'all') return true;
-      let bExpected = 0, gExpected = 0;
-      if (item.splitMode === 'bride') bExpected = item.totalAmount || 0;
-      else if (item.splitMode === 'groom') gExpected = item.totalAmount || 0;
-      else if (item.splitMode === 'custom') { bExpected = item.expectedBride || 0; gExpected = item.expectedGroom || 0; }
-      else { bExpected = (item.totalAmount || 0) / 2; gExpected = (item.totalAmount || 0) / 2; }
-      if (mode === 'bride') return bExpected > 0;
-      if (mode === 'groom') return gExpected > 0;
-      return true;
-    });
-
-    const tableRows = itemsToExport.map(item => {
-      const bPaid = item.payments ? item.payments.filter(p => p.payer === 'Bride').reduce((s,p) => s + p.amount, 0) : (item.bridePaid ?? (item.amountPaid || 0));
-      const gPaid = item.payments ? item.payments.filter(p => p.payer === 'Groom').reduce((s,p) => s + p.amount, 0) : (item.groomPaid || 0);
-      const totalCost = item.totalAmount || 0;
-      const tPaid = bPaid + gPaid;
-      const remaining = totalCost - tPaid;
-      const status = remaining <= 0 ? "Paid" : tPaid > 0 ? "Partial" : "Pending";
-      const catDisplay = item.subcategory ? `${item.category} > ${item.subcategory}` : (item.category || "Uncategorized");
-      let split = "50/50";
-      if (item.splitMode === 'bride') split = "100% Bride";
-      else if (item.splitMode === 'groom') split = "100% Groom";
-      else if (item.splitMode === 'custom') split = "Custom";
-      
-      return [
-        item.description,
-        catDisplay,
-        split,
-        `LKR ${totalCost.toLocaleString()}${item.isCostEstimated ? ' (Est.)' : ''}`,
-        `LKR ${bPaid.toLocaleString()}`,
-        `LKR ${gPaid.toLocaleString()}`,
-        `LKR ${remaining.toLocaleString()}`,
-        status
-      ];
-    });
-    
-    autoTable(doc, {
-      head: [tableCols],
-      body: tableRows,
-      startY: 55,
-      theme: 'grid',
-      headStyles: { fillColor: [92, 40, 64], textColor: [255, 255, 255], fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 4 },
-      alternateRowStyles: { fillColor: [250, 246, 248] },
-    });
-    
-    doc.save(`${title.replace(/ /g, '_')}_${dateStr}.pdf`);
-    showToast(`${title} PDF downloaded ✓`);
-  };
-
-  return (
-    <div className="tab-container" style={{paddingBottom: 40}}>
-      <div className="dashboard-hero" style={{marginBottom: 40}}>
-        <div>
-          <div className="dashboard-kicker">Finance</div>
-          <h2>Expense Tracker</h2>
-          <p>Manage your wedding expenses, track what's paid, and keep an eye on your remaining balances.</p>
-        </div>
-        
-        <div className="hero-metrics">
-          <div className="hero-metric">
-            <div className="hero-metric-label">Total Expenses</div>
-            <div className="hero-metric-value">LKR {totalBudget.toLocaleString()}</div>
-          </div>
-          <div className="hero-metric">
-            <div className="hero-metric-label">Bride Paid</div>
-            <div className="hero-metric-value" style={{color: '#f472b6'}}>LKR {totalBridePaid.toLocaleString()}</div>
-          </div>
-          <div className="hero-metric">
-            <div className="hero-metric-label">Groom Paid</div>
-            <div className="hero-metric-value" style={{color: '#60a5fa'}}>LKR {totalGroomPaid.toLocaleString()}</div>
-          </div>
-          <div className="hero-metric">
-            <div className="hero-metric-label">Remaining Balance</div>
-            <div className="hero-metric-value" style={{color: '#f59e0b'}}>LKR {remainingBalance.toLocaleString()}</div>
-          </div>
-          
-          <div className="hero-metric" style={{gridColumn: '1 / -1', display: 'flex', gap: 20, background: 'rgba(255,255,255,0.08)', padding: '16px 20px', borderRadius: 12, marginTop: 12}}>
-            <div style={{flex: 1, background: 'rgba(244, 114, 182, 0.15)', padding: '12px 16px', borderRadius: 8, border: '1px solid rgba(244, 114, 182, 0.4)', boxShadow: '0 0 20px rgba(244, 114, 182, 0.2)'}}>
-              <div style={{fontSize: 11, fontWeight: 700, color: '#fbcfe8', textTransform: 'uppercase', marginBottom: 4}}>Bride Still Needs to Pay</div>
-              <div style={{fontSize: 26, fontWeight: 700, color: '#f472b6'}}>LKR {brideOwes.toLocaleString()}</div>
-            </div>
-            <div style={{flex: 1, padding: '12px 16px'}}>
-              <div style={{fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 4}}>Groom Still Needs to Pay</div>
-              <div style={{fontSize: 24, fontWeight: 600, color: '#bfdbfe'}}>LKR {groomOwes.toLocaleString()}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-        <div style={{display:'flex', alignItems:'center', gap: 16}}>
-          <h3 className="dashboard-section-title" style={{margin:0}}>Expenses</h3>
-          <select className="filter-select" value={filter} onChange={e => setFilter(e.target.value)}>
-            <option value="all">All Expenses</option>
-            <option value="bride">Bride's Expenses</option>
-            <option value="groom">Groom's Expenses</option>
-          </select>
-        </div>
-        <div style={{display:'flex', gap: 12, position: 'relative'}}>
-          <div style={{position: 'relative'}}>
-            <button className="btn btn-secondary" onClick={() => setPdfMenuOpen(!pdfMenuOpen)}>
-              ⬇ Export PDF <span style={{fontSize:9,opacity:.7}}>{pdfMenuOpen?"▲":"▼"}</span>
-            </button>
-            {pdfMenuOpen && (
-              <div 
-                className="pdf-dropdown-menu"
-                style={{
-                  position: 'absolute', top: '100%', right: 0, marginTop: 4, 
-                  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, 
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50,
-                  minWidth: 180, overflow: 'hidden'
-                }}
-                onMouseLeave={() => setPdfMenuOpen(false)}
-              >
-                <div style={{padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#999', backgroundColor: '#f9fafb', borderBottom: '1px solid #eee'}}>PDF EXPORT OPTIONS</div>
-                <div className="pdf-menu-item" style={{padding: '10px 16px', fontSize: 13, cursor: 'pointer', borderBottom: '1px solid #eee'}} onClick={() => { setPdfMenuOpen(false); downloadFinancePDF('all'); }}>All Expenses</div>
-                <div className="pdf-menu-item" style={{padding: '10px 16px', fontSize: 13, cursor: 'pointer', borderBottom: '1px solid #eee'}} onClick={() => { setPdfMenuOpen(false); downloadFinancePDF('bride'); }}>Bride's Expenses Only</div>
-                <div className="pdf-menu-item" style={{padding: '10px 16px', fontSize: 13, cursor: 'pointer'}} onClick={() => { setPdfMenuOpen(false); downloadFinancePDF('groom'); }}>Groom's Expenses Only</div>
-              </div>
-            )}
-          </div>
-          <button className="btn btn-primary" onClick={() => handleOpenModal()}>+ Add Expense</button>
-        </div>
-      </div>
-
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Category</th>
-              <th style={{textAlign:'right'}}>Total Cost</th>
-              <th style={{textAlign:'right'}}>Bride Paid</th>
-              <th style={{textAlign:'right'}}>Groom Paid</th>
-              <th style={{textAlign:'right'}}>Remaining</th>
-              <th>Status</th>
-              <th>Notes</th>
-              <th style={{width: 80}}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              const filteredItems = budgetItems.filter(item => {
-                if (filter === 'all') return true;
-                
-                let bExpected = 0, gExpected = 0;
-                if (item.splitMode === 'bride') bExpected = item.totalAmount || 0;
-                else if (item.splitMode === 'groom') gExpected = item.totalAmount || 0;
-                else if (item.splitMode === 'custom') { bExpected = item.expectedBride || 0; gExpected = item.expectedGroom || 0; }
-                else { bExpected = (item.totalAmount || 0) / 2; gExpected = (item.totalAmount || 0) / 2; }
-                
-                if (filter === 'bride') return bExpected > 0;
-                if (filter === 'groom') return gExpected > 0;
-                return true;
-              });
-
-              if (filteredItems.length === 0) {
-                return <tr><td colSpan="9" style={{textAlign:'center', padding:40, color:'#888'}}>No expenses found.</td></tr>;
-              }
-
-              return filteredItems.map(item => {
-              const bPaid = item.payments ? item.payments.filter(p => p.payer === 'Bride').reduce((s,p) => s + p.amount, 0) : (item.bridePaid ?? (item.amountPaid || 0));
-              const gPaid = item.payments ? item.payments.filter(p => p.payer === 'Groom').reduce((s,p) => s + p.amount, 0) : (item.groomPaid || 0);
-              const totalCost = item.totalAmount || 0;
-              
-              const tPaid = bPaid + gPaid;
-              const remaining = totalCost - tPaid;
-              const status = remaining <= 0 ? "Paid" : tPaid > 0 ? "Partial" : "Pending";
-              const statusColor = status === "Paid" ? "#10b981" : status === "Partial" ? "#f59e0b" : "#ef4444";
-              
-              const catDisplay = item.subcategory ? `${item.category} > ${item.subcategory}` : (item.category || "Uncategorized");
-
-              return (
-                <tr key={item.id}>
-                  <td style={{fontWeight:600}}>{item.description}</td>
-                  <td><span className="table-tag">{catDisplay}</span></td>
-                  <td style={{textAlign:'right'}}>
-                    LKR {Number(totalCost).toLocaleString()}
-                    {item.isCostEstimated && <span style={{fontSize:10, color:'#f59e0b', marginLeft:4, fontWeight:'bold'}}>(Est.)</span>}
-                  </td>
-                  <td style={{textAlign:'right', color:'#f472b6'}}>LKR {Number(bPaid).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#60a5fa'}}>LKR {Number(gPaid).toLocaleString()}</td>
-                  <td style={{textAlign:'right', color:'#f59e0b'}}>LKR {remaining.toLocaleString()}</td>
-                  <td>
-                    <span style={{
-                      display:'inline-block', padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:600,
-                      backgroundColor: `${statusColor}22`, color: statusColor
-                    }}>
-                      {status}
-                    </span>
-                  </td>
-                  <td style={{fontSize: 12, color: '#888'}}>{item.notes}</td>
-                  <td style={{textAlign:'right'}}>
-                    <button className="action-btn" onClick={()=>handleOpenModal(item)}>Edit</button>
-                    <button className="action-btn" style={{color:'#ef4444', marginLeft:8}} onClick={()=>handleDelete(item.id)}>Del</button>
-                  </td>
-                </tr>
-              );
-            });
-            })()}
-          </tbody>
-        </table>
-      </div>
-
-      {isModalOpen && <BudgetModal item={editingItem} onClose={()=>setIsModalOpen(false)} onSave={handleSave} financeCategories={financeCategories} />}
-      
-      <FinanceCategoryManager 
-        categories={financeCategories} 
-        setCategories={setFinanceCategories} 
-        budgetItems={budgetItems} 
-        showToast={showToast} 
-        saveBudgetToCloud={saveBudgetToCloud} 
-      />
-    </div>
-  );
-}
-
-function FinanceCategoryManager({ categories, setCategories, budgetItems, showToast, saveBudgetToCloud }) {
-  const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState(PALETTE[5]);
-  const [expandedCats, setExpandedCats] = useState({});
-  const [newSubcats, setNewSubcats] = useState({});
-
-  const toggleExpand = (catName) => {
-    setExpandedCats(prev => ({ ...prev, [catName]: !prev[catName] }));
-  };
-
-  const handleRename = (idx, name) => {
-    const old = categories[idx].name;
-    const next = name.trim();
-    if (!next || next === old) return;
-    const updated = categories.map((c, i) => i === idx ? { ...c, name: next } : c);
-    setCategories(updated);
-    saveBudgetToCloud(budgetItems, updated);
-    showToast(`Renamed to "${next}" ✓`);
-  };
-
-  const handleRecolor = (idx, color) => {
-    const updated = categories.map((c, i) => i === idx ? { ...c, color } : c);
-    setCategories(updated);
-    saveBudgetToCloud(budgetItems, updated);
-  };
-
-  const handleAdd = () => {
-    const t = newName.trim();
-    if (!t) return;
-    if (categories.find(c => c.name.toLowerCase() === t.toLowerCase())) {
-      showToast("Already exists");
-      return;
-    }
-    const updated = [...categories, { name: t, color: newColor, subcategories: [] }];
-    setCategories(updated);
-    saveBudgetToCloud(budgetItems, updated);
-    setNewName("");
-    setNewColor(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
-    showToast(`"${t}" added ✓`);
-  };
-
-  const handleDelete = (idx) => {
-    const cat = categories[idx];
-    const inUse = budgetItems.filter(i => i.category === cat.name).length;
-    if (inUse > 0) {
-      showToast(`${inUse} items in this category — reassign first`);
-      return;
-    }
-    const updated = categories.filter((_, i) => i !== idx);
-    setCategories(updated);
-    saveBudgetToCloud(budgetItems, updated);
-    showToast(`"${cat.name}" removed`);
-  };
-
-  const handleAddSubcat = (idx, subName) => {
-    const t = subName.trim();
-    if (!t) return;
-    const cat = categories[idx];
-    const subs = cat.subcategories || [];
-    if (subs.find(s => s.toLowerCase() === t.toLowerCase())) {
-      showToast("Subcategory already exists");
-      return;
-    }
-    const updated = categories.map((c, i) => i === idx ? { ...c, subcategories: [...subs, t] } : c);
-    setCategories(updated);
-    saveBudgetToCloud(budgetItems, updated);
-    setNewSubcats(prev => ({ ...prev, [cat.name]: "" }));
-    showToast(`"${t}" added to ${cat.name} ✓`);
-  };
-
-  const handleDeleteSubcat = (idx, subIdx) => {
-    const cat = categories[idx];
-    const subName = cat.subcategories[subIdx];
-    const inUse = budgetItems.filter(i => i.category === cat.name && i.subcategory === subName).length;
-    if (inUse > 0) {
-      showToast(`${inUse} items use this subcategory — reassign first`);
-      return;
-    }
-    const updated = categories.map((c, i) => i === idx ? { ...c, subcategories: c.subcategories.filter((_, si) => si !== subIdx) } : c);
-    setCategories(updated);
-    saveBudgetToCloud(budgetItems, updated);
-    showToast(`"${subName}" removed`);
-  };
-
-  return (
-    <div className="cat-manager" style={{marginTop: 40}}>
-      <div className="top-bar">
-        <h3 className="dashboard-section-title">Finance Categories</h3>
-      </div>
-      <p className="cat-manager-hint">Click the colour swatch to change it · Click the name to rename · Expand to manage subcategories</p>
-      <div className="cat-manager-list">
-        {categories.map((cat, idx) => {
-          const inUse = budgetItems.filter(i => i.category === cat.name).length;
-          return (
-            <div className="cat-manager-item" key={cat.name + idx}>
-              <div className="cat-manager-row">
-                <ColorPicker value={cat.color} onChange={color => handleRecolor(idx, color)} />
-                <input className="cat-name-input" defaultValue={cat.name} onBlur={e => handleRename(idx, e.target.value)} onKeyDown={e => e.key === "Enter" && e.target.blur()} />
-                <span className="cat-guest-count">{inUse} items</span>
-                <button className="btn btn-ghost btn-sm" onClick={()=>toggleExpand(cat.name)} style={{padding:"5px 10px", marginLeft:8, display:"flex", alignItems:"center", gap:4}}>
-                  {expandedCats[cat.name] ? "▲ Hide Subcategories" : "▼ Subcategories"}
-                </button>
-                <button className="cat-del-btn" disabled={inUse > 0} onClick={() => handleDelete(idx)} title={inUse > 0 ? "Reassign items first" : "Delete"}>✕</button>
-              </div>
-              {expandedCats[cat.name] && (
-                <div className="cat-guests-expansion" style={{padding: '12px 16px', background: 'rgba(255,255,255,0.4)', borderRadius: 8, marginTop: 8}}>
-                  <div style={{fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 8}}>SUBCATEGORIES</div>
-                  <div style={{display:'flex', flexWrap:'wrap', gap: 8, marginBottom: 12}}>
-                    {(cat.subcategories || []).map((sub, sIdx) => (
-                      <div key={sub} style={{display:'flex', alignItems:'center', background:'#fff', border:'1px solid #ddd', padding:'4px 8px', borderRadius:16, fontSize:12}}>
-                        {sub}
-                        <button onClick={()=>handleDeleteSubcat(idx, sIdx)} style={{background:'none', border:'none', marginLeft:6, cursor:'pointer', color:'#999'}}>✕</button>
-                      </div>
-                    ))}
-                    {(!cat.subcategories || cat.subcategories.length === 0) && <span style={{fontSize: 12, color: '#999'}}>No subcategories yet.</span>}
-                  </div>
-                  <div style={{display:'flex', gap: 8}}>
-                    <input 
-                      className="form-input" 
-                      style={{padding: '4px 8px', fontSize: 12, height: 28, width: 200}} 
-                      placeholder="New subcategory..." 
-                      value={newSubcats[cat.name] || ""} 
-                      onChange={e => setNewSubcats(prev => ({...prev, [cat.name]: e.target.value}))}
-                      onKeyDown={e => e.key === "Enter" && handleAddSubcat(idx, newSubcats[cat.name] || "")}
-                    />
-                    <button className="btn btn-primary btn-sm" style={{height: 28, padding: '0 12px', fontSize: 12}} onClick={() => handleAddSubcat(idx, newSubcats[cat.name] || "")}>Add</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="cat-add-row" style={{marginTop:16}}>
-        <ColorPicker value={newColor} onChange={setNewColor} />
-        <input className="cat-add-input" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAdd()} placeholder="New category name..." />
-        <button className="btn btn-primary btn-sm" onClick={handleAdd} disabled={!newName.trim()}>Add</button>
-      </div>
-    </div>
-  );
-}
-
-function BudgetModal({ item, onClose, onSave, financeCategories }) {
-  // Migrate old data
-  let initialPayments = item?.payments || [];
-  if (initialPayments.length === 0) {
-    const oldB = item?.bridePaid ?? (item?.amountPaid || 0);
-    const oldG = item?.groomPaid || 0;
-    if (oldB > 0) initialPayments.push({ id: 'legacy-b', amount: oldB, payer: 'Bride', date: new Date().toISOString().split('T')[0] });
-    if (oldG > 0) initialPayments.push({ id: 'legacy-g', amount: oldG, payer: 'Groom', date: new Date().toISOString().split('T')[0] });
-  }
-
-  const [form, setForm] = useState({
-    id: item?.id || Date.now().toString(),
-    description: item?.description || "",
-    category: item?.category || (financeCategories.length > 0 ? financeCategories[0].name : ""),
-    subcategory: item?.subcategory || "",
-    totalAmount: item?.totalAmount || (item?.expectedBride || 0) + (item?.expectedGroom || 0),
-    isCostEstimated: item?.isCostEstimated || false,
-    splitMode: item?.splitMode || "50/50",
-    expectedBride: item?.expectedBride || 0,
-    expectedGroom: item?.expectedGroom || 0,
-    payments: initialPayments,
-    notes: item?.notes || ""
-  });
-
-  const [newPayment, setNewPayment] = useState({ amount: "", payer: "Bride", date: new Date().toISOString().split('T')[0] });
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const selectedCategoryObj = financeCategories.find(c => c.name === form.category);
-  const subcategories = selectedCategoryObj?.subcategories || [];
-
-  const handleCategoryChange = (newCat) => {
-    const catObj = financeCategories.find(c => c.name === newCat);
-    const firstSub = catObj?.subcategories?.[0] || "";
-    setForm(f => ({ ...f, category: newCat, subcategory: firstSub }));
-  };
-
-  const handleAddPayment = () => {
-    if (!newPayment.amount || Number(newPayment.amount) <= 0) return;
-    setForm(f => ({
-      ...f,
-      payments: [...f.payments, { ...newPayment, id: Date.now().toString(), amount: Number(newPayment.amount) }]
-    }));
-    setNewPayment({ amount: "", payer: "Bride", date: new Date().toISOString().split('T')[0] });
-  };
-
-  const handleRemovePayment = (id) => {
-    setForm(f => ({ ...f, payments: f.payments.filter(p => p.id !== id) }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!form.description.trim()) return;
-    
-    const t = Number(form.totalAmount);
-    let eb = 0, eg = 0;
-    if (form.splitMode === "50/50") { eb = t/2; eg = t/2; }
-    else if (form.splitMode === "bride") { eb = t; eg = 0; }
-    else if (form.splitMode === "groom") { eb = 0; eg = t; }
-    else if (form.splitMode === "custom") { eb = Number(form.expectedBride); eg = Number(form.expectedGroom); }
-    
-    onSave({
-      ...form,
-      totalAmount: t,
-      isCostEstimated: form.isCostEstimated,
-      expectedBride: eb,
-      expectedGroom: eg
-    });
-  };
-
-  return (
-    <div className="modal-overlay">
-      <div className="modal" style={{maxWidth: 500}}>
-        <div className="modal-header">
-          <h3>{item ? "Edit Expense" : "Add Expense"}</h3>
-          <button className="modal-close" onClick={onClose}>×</button>
-        </div>
-        <form className="modal-body" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">Description</label>
-            <input className="form-input" value={form.description} onChange={e=>set("description", e.target.value)} placeholder="e.g. Venue" autoFocus />
-          </div>
-          
-          <div style={{display:'flex', gap:12}}>
-            <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Category</label>
-              <select className="form-input" value={form.category} onChange={e=>handleCategoryChange(e.target.value)}>
-                <option value="">Uncategorized</option>
-                {financeCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-              </select>
-            </div>
-            {subcategories.length > 0 && (
-              <div className="form-group" style={{flex:1}}>
-                <label className="form-label">Subcategory</label>
-                <select className="form-input" value={form.subcategory} onChange={e=>set("subcategory", e.target.value)}>
-                  <option value="">Select...</option>
-                  {subcategories.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div style={{display:'flex', gap:12}}>
-            <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Total Cost (LKR)</label>
-              <input className="form-input" type="number" min="0" value={form.totalAmount} onChange={e=>set("totalAmount", e.target.value)} />
-              <label style={{display:'flex', alignItems:'center', gap:6, marginTop:8, fontSize:12, color:'#666', cursor:'pointer'}}>
-                <input type="checkbox" checked={form.isCostEstimated} onChange={e=>set("isCostEstimated", e.target.checked)} />
-                Cost is estimated / pending
-              </label>
-            </div>
-            <div className="form-group" style={{flex:1}}>
-              <label className="form-label">Responsibility Split</label>
-              <select className="form-input" value={form.splitMode} onChange={e=>set("splitMode", e.target.value)}>
-                <option value="50/50">50/50 Split</option>
-                <option value="bride">100% Bride</option>
-                <option value="groom">100% Groom</option>
-                <option value="custom">Custom...</option>
-              </select>
-            </div>
-          </div>
-
-          {form.splitMode === 'custom' && (
-            <div style={{display:'flex', gap:12, marginBottom:16}}>
-              <div className="form-group" style={{flex:1, marginBottom:0}}>
-                <label className="form-label">Expected from Bride (LKR)</label>
-                <input className="form-input" type="number" min="0" value={form.expectedBride} onChange={e=>set("expectedBride", e.target.value)} />
-              </div>
-              <div className="form-group" style={{flex:1, marginBottom:0}}>
-                <label className="form-label">Expected from Groom (LKR)</label>
-                <input className="form-input" type="number" min="0" value={form.expectedGroom} onChange={e=>set("expectedGroom", e.target.value)} />
-              </div>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label className="form-label">Payment History</label>
-            <div style={{background: '#f9f9f9', padding: 12, borderRadius: 8, border: '1px solid #eee'}}>
-              {form.payments.length === 0 ? (
-                <div style={{fontSize: 12, color: '#888', marginBottom: 12}}>No payments recorded yet.</div>
-              ) : (
-                <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16}}>
-                  {form.payments.map(p => (
-                    <div key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff', padding:'8px 12px', borderRadius:6, border:'1px solid #ddd', fontSize:13}}>
-                      <div>
-                        <strong>LKR {p.amount}</strong> by {p.payer} <span style={{color:'#888', fontSize:11, marginLeft:8}}>{p.date}</span>
-                      </div>
-                      <button type="button" onClick={()=>handleRemovePayment(p.id)} style={{background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:16}}>×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              <div style={{display:'flex', gap:8, alignItems:'flex-end'}}>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Amount (LKR)</label>
-                  <input className="form-input" type="number" min="0" style={{padding:'6px 8px'}} value={newPayment.amount} onChange={e=>setNewPayment({...newPayment, amount: e.target.value})} />
-                </div>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Payer</label>
-                  <select className="form-input" style={{padding:'6px 8px'}} value={newPayment.payer} onChange={e=>setNewPayment({...newPayment, payer: e.target.value})}>
-                    <option value="Bride">Bride</option>
-                    <option value="Groom">Groom</option>
-                  </select>
-                </div>
-                <div style={{flex:1.5}}>
-                  <label style={{fontSize:10, color:'#888', display:'block', marginBottom:2}}>Date</label>
-                  <input className="form-input" type="date" style={{padding:'6px 8px'}} value={newPayment.date} onChange={e=>setNewPayment({...newPayment, date: e.target.value})} />
-                </div>
-                <button type="button" className="btn btn-primary btn-sm" onClick={handleAddPayment}>Add</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Notes (optional)</label>
-            <input className="form-input" value={form.notes} onChange={e=>set("notes", e.target.value)} placeholder="e.g. Deposit paid on May 1st" />
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={!form.description.trim()}>Save Expense</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ── App root ──────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [guests,setGuests]=useState([]);
-  const [budgetItems,setBudgetItems]=useState([]);
-  const [financeCategories,setFinanceCategories]=useState(DEFAULT_FINANCE_CATEGORIES);
   const [categories,setCategories]=useState(DEFAULT_CATEGORIES);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("dashboard");
@@ -1904,23 +1270,7 @@ export default function App() {
           setLoading(false);
         }
       );
-
-      const unsubBudget = onSnapshot(
-        doc(db, "wedding", "budget"),
-        async (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            setBudgetItems(data.items || []);
-            setFinanceCategories(data.categories || DEFAULT_FINANCE_CATEGORIES);
-          } else {
-            await setDoc(doc(db, "wedding", "budget"), { items: [], categories: DEFAULT_FINANCE_CATEGORIES });
-            setBudgetItems([]);
-            setFinanceCategories(DEFAULT_FINANCE_CATEGORIES);
-          }
-        }
-      );
-
-      return () => { unsubGuests(); unsubBudget(); };
+      return () => { unsubGuests(); };
     });
 
     const t = setTimeout(()=>setSplash(false), 2200);
@@ -1959,15 +1309,6 @@ export default function App() {
         doc(db, "wedding", "guests"),
         { guests: updatedGuests, categories: updatedCategories }
       );
-    } catch (err) {
-      showToast("⚠ Save failed — check connection");
-      throw err;
-    }
-  };
-
-  const saveBudgetToCloud = async (updatedItems, updatedCategories = financeCategories) => {
-    try {
-      await setDoc(doc(db, "wedding", "budget"), { items: updatedItems, categories: updatedCategories });
     } catch (err) {
       showToast("⚠ Save failed — check connection");
       throw err;
@@ -2807,7 +2148,7 @@ export default function App() {
             <button className={`nav-btn${view==="guests"?" active":""}`} onClick={()=>setView("guests")}>Guest List<span className="nav-count">{guests.length}</span></button>
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
-            <button className={`nav-btn${view==="finance"?" active":""}`} onClick={()=>setView("finance")}>Finance</button>
+            <button className={`nav-btn${view===\"planner\"?\" active\":\"\"}`} onClick={()=>setView(\"planner\")}>Planner</button>
             {isAdmin&&<button className={`nav-btn${view==="audit"?" active":""}`} onClick={()=>setView("audit")}>Audit<span className="nav-count">{auditLogs.length}</span></button>}
           </nav>
           <div style={{display:"flex",gap:8,flexShrink:0}}>
@@ -2936,7 +2277,7 @@ export default function App() {
 
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
           {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast} downloadCategoriesBreakdownPDF={downloadCategoriesBreakdownPDF}/>}
-          {view==="finance"&&<FinanceTab budgetItems={budgetItems} setBudgetItems={setBudgetItems} saveBudgetToCloud={saveBudgetToCloud} showToast={showToast} financeCategories={financeCategories} setFinanceCategories={setFinanceCategories} />}
+          {view===\"planner\"&&<TablePlanner guests={guests} />}
           {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>
