@@ -43,55 +43,49 @@ export default function GuestNamesTab({ guests, updateGuests, showToast }) {
     doc.text("Generated on " + new Date().toLocaleDateString(), pageW / 2, yPos, { align: "center" });
     yPos += 15;
 
-    // Group by table
-    const guestsByTable = {};
+    const allAttendees = [];
     guests.forEach(g => {
-        const t = g.table || "Unassigned";
-        if (!guestsByTable[t]) guestsByTable[t] = [];
-        guestsByTable[t].push(g);
-    });
-
-    const tables = Object.keys(guestsByTable).sort((a,b) => {
-        if (a === "HT" && b === "HT") return 0;
-        if (a === "HT") return -1;
-        if (b === "HT") return 1;
-        if (a === "Unassigned") return 1;
-        if (b === "Unassigned") return -1;
-        return Number(a)-Number(b);
-    });
-
-    tables.forEach(t => {
-      const tableGuests = guestsByTable[t];
-      
-      const rows = [];
-      tableGuests.forEach(g => {
         const count = getAttending(g);
         const names = g.inviteeNames || [];
+        const t = g.table || "Unassigned";
         for(let i=0; i<count; i++) {
-           rows.push([g.name, names[i] || ""]);
+           allAttendees.push({
+             givenName: names[i] || `${g.name} (Guest ${i+1})`,
+             table: t
+           });
         }
-      });
-      
-      autoTable(doc, {
-        startY: yPos,
-        head: [[`Table ${t} (${rows.length} pax)`, 'Invitee Name']],
-        body: rows,
-        theme: 'striped',
-        headStyles: { fillColor: [176, 82, 120], fontSize: 12, fontStyle: 'bold' },
-        styles: { fontSize: 10, cellPadding: 4 },
-        columnStyles: {
-          0: { cellWidth: 80 },
-          1: { cellWidth: 'auto' }
-        },
-        margin: { left: 14, right: 14 }
-      });
+    });
 
-      yPos = doc.lastAutoTable.finalY + 12;
+    allAttendees.sort((a,b) => {
+        if (sortOption === "alpha") {
+            return a.givenName.localeCompare(b.givenName);
+        }
+        const tA = a.table;
+        const tB = b.table;
+        if (tA === "HT" && tB === "HT") return a.givenName.localeCompare(b.givenName);
+        if (tA === "HT") return -1;
+        if (tB === "HT") return 1;
+        if (tA === "Unassigned" && tB === "Unassigned") return a.givenName.localeCompare(b.givenName);
+        if (tA === "Unassigned") return 1;
+        if (tB === "Unassigned") return -1;
+        if (tA !== tB) return tA.toString().localeCompare(tB.toString(), undefined, {numeric: true});
+        return a.givenName.localeCompare(b.givenName);
+    });
 
-      if (yPos > doc.internal.pageSize.getHeight() - 30) {
-        doc.addPage();
-        yPos = 20;
-      }
+    const rows = allAttendees.map(a => [a.givenName, `Table ${a.table}`]);
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Invitee Name', 'Table']],
+      body: rows,
+      theme: 'striped',
+      headStyles: { fillColor: [176, 82, 120], fontSize: 12, fontStyle: 'bold' },
+      styles: { fontSize: 11, cellPadding: 5 },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 50, halign: 'center' }
+      },
+      margin: { left: 14, right: 14 }
     });
 
     doc.save(`Guest_Names_${new Date().toISOString().split('T')[0]}.pdf`);
