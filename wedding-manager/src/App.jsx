@@ -6,6 +6,7 @@ import autoTable from "jspdf-autotable";
 import { db, auth } from "./firebase";
 import LoginScreen from "./LoginScreen";
 import TablePlanner from "./components/TablePlanner";
+import GuestNamesTab from "./components/GuestNamesTab";
 import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
@@ -67,7 +68,7 @@ const RESTORED_CATEGORIES = [
 ];
 
 const MKG = (id,name,cat,count,inviteStatus="not_sent",inviteSentDate=null,table=null,notes="") =>
-  ({id,name,category:cat,count,attendingCount:null,rsvp:"pending",table,notes,inviteStatus,inviteSentDate});
+  ({id,name,category:cat,count,attendingCount:null,rsvp:"pending",table,notes,inviteStatus,inviteSentDate,inviteeNames:[]});
 
 const RESTORED_GUESTS = [
   // Neighbours
@@ -196,7 +197,7 @@ const RSVP_CONFIG = {
 };
 
 const MK = (id, name, cat, count, table=null, notes="") =>
-  ({ id, name, category:cat, count, attendingCount:null, rsvp:"pending", table, notes, inviteStatus:"not_sent", inviteSentDate:null });
+  ({ id, name, category:cat, count, attendingCount:null, rsvp:"pending", table, notes, inviteStatus:"not_sent", inviteSentDate:null, inviteeNames:[] });
 
 const INITIAL_GUESTS = [
   MK(1,"Anusha & Family","Sanjeeva's Invites",6),
@@ -2256,6 +2257,7 @@ export default function App() {
             <button className={`nav-btn${view==="invitations"?" active":""}`} onClick={()=>setView("invitations")}>Invitations<span className="nav-count">{invSentCount}/{guests.length}</span></button>
             <button className={`nav-btn${view==="categories"?" active":""}`} onClick={()=>setView("categories")}>Categories<span className="nav-count">{categories.length}</span></button>
             <button className={`nav-btn${view==="planner"?" active":""}`} onClick={()=>setView("planner")}>Planner</button>
+            <button className={`nav-btn${view==="guestNames"?" active":""}`} onClick={()=>setView("guestNames")}>Guest Names</button>
             {isAdmin&&<button className={`nav-btn${view==="audit"?" active":""}`} onClick={()=>setView("audit")}>Audit<span className="nav-count">{auditLogs.length}</span></button>}
           </nav>
           <div style={{display:"flex",gap:8,flexShrink:0}}>
@@ -2385,6 +2387,7 @@ export default function App() {
           {view==="invitations"&&<InvitationsTab guests={guests} updateGuests={updateGuests} categories={categories} showToast={showToast}/>}
           {view==="categories"&&<CategoryManager categories={categories} setCategories={smartSetCategories} guests={guests} showToast={showToast} downloadCategoriesBreakdownPDF={downloadCategoriesBreakdownPDF}/>}
           {view==="planner"&&<TablePlanner guests={guests} categories={categories} updateGuests={updateGuests} showToast={showToast} />}
+          {view==="guestNames"&&<GuestNamesTab guests={guests} updateGuests={updateGuests} showToast={showToast} />}
           {view==="audit"&&isAdmin&&<AuditLogsTab logs={auditLogs} loading={auditLoading}/>}
         </main>
       </div>
