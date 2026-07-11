@@ -4,12 +4,16 @@ import autoTable from "jspdf-autotable";
 
 export default function GuestNamesTab({ guests, updateGuests, showToast }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortOption, setSortOption] = useState("table");
 
   const getAttending = (g) => g.attendingCount != null ? g.attendingCount : g.count;
   
   const filteredGuests = guests
     .filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a,b) => {
+        if (sortOption === "alpha") {
+          return a.name.localeCompare(b.name);
+        }
         // Sort by table first, then name
         const tA = a.table || 'Unassigned';
         const tB = b.table || 'Unassigned';
@@ -114,6 +118,10 @@ export default function GuestNamesTab({ guests, updateGuests, showToast }) {
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
+        <select className="filter-select" value={sortOption} onChange={e => setSortOption(e.target.value)}>
+          <option value="table">Sort by Table</option>
+          <option value="alpha">Sort Alphabetically</option>
+        </select>
         <div className="results-info">Showing {filteredGuests.length} groups</div>
       </div>
 
